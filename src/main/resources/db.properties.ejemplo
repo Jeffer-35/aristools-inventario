@@ -1,0 +1,10 @@
+# ==================================================================
+# Datos de conexión a MySQL - Ferretería Aristools
+# 1. Copie este archivo con el nombre db.properties (en esta misma carpeta).
+# 2. Escriba en "clave" la contraseña de su usuario de MySQL.
+# El archivo db.properties NO se sube a GitHub (está en .gitignore)
+# porque contiene la contraseña.
+# ==================================================================
+url=jdbc:mysql://localhost:3306/aristools?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=America/Bogota&characterEncoding=UTF-8
+usuario=root
+clave=ESCRIBA_AQUI_SU_CONTRASENA

@@ -1,0 +1,16 @@
+# Archivos generados por Maven al compilar
+target/
+
+# Contiene la contraseña de MySQL: no se sube a GitHub
+src/main/resources/db.properties
+
+# Respaldos de la base de datos (pueden tener datos reales)
+database/respaldos/
+
+# Configuración local de los editores
+.vscode/
+.idea/
+*.iml
+.classpath
+.project
+.settings/
