@@ -4,7 +4,7 @@ Proyecto Integrador de cuarto semestre · Tecnología en Sistemas de Informació
 
 Aplicativo de escritorio en Java para controlar el inventario de la **Ferretería Aristools**: productos, bodegas, proveedores y cada movimiento de mercancía (entradas, salidas, transferencias, conteos físicos y ajustes). Cada movimiento guarda quién lo registró, quién lo autorizó, cuándo y por qué, de modo que el kardex de cualquier producto se puede reconstruir y siempre coincide con el stock. El alcance es la gestión de bodega: **no incluye ventas ni facturación**.
 
-**Equipo:** Deibit Arley Urbano, Jefferson Paredes, Juan Sebastián Muñoz y Jerónimo Montoya.
+**Equipo:** Deibit Arley Urbano y Jefferson Paredes.
 
 ---
 
