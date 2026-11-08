@@ -4,16 +4,21 @@ REM  Ferretería Aristools - Restauración de la base de datos (RNF-007)
 REM  Restaura un respaldo generado con respaldar_bd.bat.
 REM  ATENCION: reemplaza la base "aristools" actual por la del respaldo.
 REM
-REM  Antes de usarlo, revise que MYSQL_BIN apunte a la carpeta "bin" de
-REM  su instalación de MySQL y que USUARIO sea su usuario de MySQL.
+REM  Busca solo la carpeta "bin" de MySQL Server (sirve para 8.x y 9.x).
+REM  Si MySQL esta en otra ruta, escribala en MYSQL_BIN. USUARIO es su
+REM  usuario de MySQL.
 REM ====================================================================
 setlocal
-set "MYSQL_BIN=C:\Program Files\MySQL\MySQL Server 8.0\bin"
+set "MYSQL_BIN="
+REM Detecta la version instalada de MySQL Server (8.0, 8.4, 9.x...)
+for /d %%D in ("C:\Program Files\MySQL\MySQL Server *") do (
+    if exist "%%~D\bin\mysql.exe" set "MYSQL_BIN=%%~D\bin"
+)
 set "USUARIO=root"
 
 if not exist "%MYSQL_BIN%\mysql.exe" (
-    echo No se encontro mysql.exe en "%MYSQL_BIN%".
-    echo Corrija la variable MYSQL_BIN en este archivo.
+    echo No se encontro mysql.exe de MySQL Server.
+    echo Instale MySQL o escriba la ruta de su carpeta "bin" en MYSQL_BIN.
     pause
     exit /b 1
 )

@@ -88,6 +88,7 @@ CREATE TABLE bodega (
     estado      VARCHAR(10)  NOT NULL DEFAULT 'ACTIVO',
     CONSTRAINT pk_bodega PRIMARY KEY (id_bodega),
     CONSTRAINT uq_bodega_codigo UNIQUE (codigo),
+    CONSTRAINT uq_bodega_nombre UNIQUE (nombre),   -- RF-004: código y nombre únicos
     CONSTRAINT ck_bodega_estado CHECK (estado IN ('ACTIVO', 'INACTIVO'))
 ) ENGINE = InnoDB;
 
@@ -158,7 +159,11 @@ CREATE TABLE movimiento_inventario (
     CONSTRAINT fk_movimiento_usuario FOREIGN KEY (id_usuario) REFERENCES usuario (id_usuario),
     CONSTRAINT fk_movimiento_usuario_autoriza FOREIGN KEY (id_usuario_autoriza) REFERENCES usuario (id_usuario),
     CONSTRAINT ck_movimiento_estado CHECK (estado IN ('PENDIENTE', 'AUTORIZADO', 'RECHAZADO')),
-    CONSTRAINT ck_movimiento_cantidad CHECK (cantidad > 0)
+    CONSTRAINT ck_movimiento_cantidad CHECK (cantidad > 0),
+    -- Segregación de funciones: quien registra no puede autorizar (RF-010, RF-011)
+    CONSTRAINT ck_movimiento_segregacion CHECK (id_usuario_autoriza IS NULL OR id_usuario_autoriza <> id_usuario),
+    -- Todo movimiento afecta al menos una bodega (origen, destino o ambas)
+    CONSTRAINT ck_movimiento_bodega CHECK (id_bodega_origen IS NOT NULL OR id_bodega_destino IS NOT NULL)
 ) ENGINE = InnoDB;
 
 -- Índices para las consultas de kardex, reportes y bandejas de autorización (RF-010, RF-011, RF-014)

@@ -91,6 +91,17 @@ class ModeloTest {
         assertThrows(NegocioException.class, e::validar);
     }
 
+    @Test
+    void compraSinDocumentoSoporteSeRechaza() {
+        Proveedor proveedor = new Proveedor(1, "900123456-1", "Distribuidora Ferretera del Valle S.A.S.",
+                "", "", "", "", EstadoRegistro.ACTIVO);
+        Entrada e = new Entrada(martillo, tipo("Compra", Naturaleza.ENTRADA, true, null), registra, 10, principal, proveedor);
+        NegocioException ex = assertThrows(NegocioException.class, e::validar);
+        assertEquals("Una compra exige el documento de soporte (factura o remisión).", ex.getMessage());
+        e.setDocumentoSoporte("FAC-004512");
+        e.validar();   // con proveedor y documento ya es válida
+    }
+
     // ----- autorizaciones (segregación de funciones) -----
 
     @Test

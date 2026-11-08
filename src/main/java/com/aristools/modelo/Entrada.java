@@ -6,6 +6,7 @@ import java.util.List;
 /**
  * Entrada de mercancía por compra o devolución (RF-006).
  * Queda Pendiente hasta que el Jefe de Compras la autoriza (RF-010).
+ * La compra exige proveedor activo y documento de soporte (reglas del RF-006).
  */
 public class Entrada extends Movimiento {
 
@@ -35,6 +36,10 @@ public class Entrada extends Movimiento {
         if ("Compra".equalsIgnoreCase(tipo.getNombre())
                 && (proveedor == null || !proveedor.estaActivo())) {
             throw new NegocioException("Una compra exige un proveedor activo.");
+        }
+        if ("Compra".equalsIgnoreCase(tipo.getNombre())
+                && (documentoSoporte == null || documentoSoporte.isBlank())) {
+            throw new NegocioException("Una compra exige el documento de soporte (factura o remisión).");
         }
     }
 
