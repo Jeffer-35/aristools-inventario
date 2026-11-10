@@ -55,7 +55,7 @@ public class PrincipalVista extends JFrame implements ActionListener {
     private final CardLayout cardLayout = new CardLayout();
     private final JPanel panelContenedor = new JPanel(cardLayout);
     private final Map<String, JButton> botonesMenu = new LinkedHashMap<>();
-    private final Map<String, Boolean> cartasCreadas = new HashMap<>();
+    private final Map<String, JPanel> paneles = new HashMap<>();
     private final InicioPanel inicioPanel;
 
     public PrincipalVista(Usuario usuario) {
@@ -63,9 +63,10 @@ public class PrincipalVista extends JFrame implements ActionListener {
         this.usuario = usuario;
         this.inicioPanel = new InicioPanel(usuario.getNombreCompleto());
         setDefaultCloseOperation(EXIT_ON_CLOSE);
-        setMinimumSize(new Dimension(1100, 680));
+        setMinimumSize(new Dimension(1000, 600));
         setSize(1280, 760);
         setLocationRelativeTo(null);
+        setExtendedState(MAXIMIZED_BOTH);   // ocupa la pantalla sin quedar debajo de la barra de tareas
 
         setLayout(new BorderLayout());
         add(crearBarraSuperior(), BorderLayout.NORTH);
@@ -73,7 +74,7 @@ public class PrincipalVista extends JFrame implements ActionListener {
         add(panelContenedor, BorderLayout.CENTER);
 
         panelContenedor.add(inicioPanel, INICIO);
-        cartasCreadas.put(INICIO, true);
+        paneles.put(INICIO, inicioPanel);
         mostrar(INICIO);
     }
 
@@ -171,12 +172,16 @@ public class PrincipalVista extends JFrame implements ActionListener {
 
     /** Muestra la carta indicada y resalta su opción en naranja. */
     public void mostrar(String carta) {
-        if (!cartasCreadas.containsKey(carta)) {
-            panelContenedor.add(crearPanel(carta), carta);   // se crea la primera vez que se abre
-            cartasCreadas.put(carta, true);
+        JPanel panel = paneles.get(carta);
+        if (panel == null) {
+            panel = crearPanel(carta);   // se crea la primera vez que se abre
+            panelContenedor.add(panel, carta);
+            paneles.put(carta, panel);
         }
         if (INICIO.equals(carta)) {
             inicioPanel.actualizar();
+        } else if (panel instanceof Recargable r) {
+            r.recargar();   // datos siempre actualizados al abrir la opción
         }
         cardLayout.show(panelContenedor, carta);
         for (Map.Entry<String, JButton> b : botonesMenu.entrySet()) {
@@ -186,12 +191,15 @@ public class PrincipalVista extends JFrame implements ActionListener {
     }
 
     /**
-     * Crea el panel de cada opción del menú. En las partes 9.2 a 9.4 se
+     * Crea el panel de cada opción del menú. En las partes 9.3 y 9.4 se
      * reemplaza cada PanelEnConstruccion por el panel real.
      */
     private JPanel crearPanel(String carta) {
         return switch (carta) {
-            case USUARIOS, CATALOGOS, PROVEEDORES, CONFIGURACION -> new PanelEnConstruccion(carta, "parte 9.2");
+            case USUARIOS -> new UsuariosPanel();
+            case CATALOGOS -> new CatalogosPanel();
+            case PROVEEDORES -> new ProveedoresPanel();
+            case CONFIGURACION -> new ParametrosPanel();
             case MOVIMIENTOS, CONTEO -> new PanelEnConstruccion(carta, "parte 9.3");
             case AUTORIZAR_ENTRADAS, AUTORIZACIONES, EXISTENCIAS, REPORTES -> new PanelEnConstruccion(carta, "parte 9.4");
             default -> new PanelEnConstruccion(carta, "siguiente parte");
