@@ -73,7 +73,7 @@ public class PrincipalVista extends JFrame implements ActionListener {
         add(crearMenuLateral(), BorderLayout.WEST);
         add(panelContenedor, BorderLayout.CENTER);
 
-        panelContenedor.add(inicioPanel, INICIO);
+        panelContenedor.add(PanelDesplazable.envolver(inicioPanel), INICIO);
         paneles.put(INICIO, inicioPanel);
         mostrar(INICIO);
     }
@@ -175,7 +175,7 @@ public class PrincipalVista extends JFrame implements ActionListener {
         JPanel panel = paneles.get(carta);
         if (panel == null) {
             panel = crearPanel(carta);   // se crea la primera vez que se abre
-            panelContenedor.add(panel, carta);
+            panelContenedor.add(PanelDesplazable.envolver(panel), carta);   // con barra si no cabe
             paneles.put(carta, panel);
         }
         if (INICIO.equals(carta)) {
@@ -191,7 +191,7 @@ public class PrincipalVista extends JFrame implements ActionListener {
     }
 
     /**
-     * Crea el panel de cada opción del menú. En las partes 9.3 y 9.4 se
+     * Crea el panel de cada opción del menú. En la parte 9.4 se
      * reemplaza cada PanelEnConstruccion por el panel real.
      */
     private JPanel crearPanel(String carta) {
@@ -200,7 +200,8 @@ public class PrincipalVista extends JFrame implements ActionListener {
             case CATALOGOS -> new CatalogosPanel();
             case PROVEEDORES -> new ProveedoresPanel();
             case CONFIGURACION -> new ParametrosPanel();
-            case MOVIMIENTOS, CONTEO -> new PanelEnConstruccion(carta, "parte 9.3");
+            case MOVIMIENTOS -> new MovimientosPanel();
+            case CONTEO -> new ConteoPanel();
             case AUTORIZAR_ENTRADAS, AUTORIZACIONES, EXISTENCIAS, REPORTES -> new PanelEnConstruccion(carta, "parte 9.4");
             default -> new PanelEnConstruccion(carta, "siguiente parte");
         };
