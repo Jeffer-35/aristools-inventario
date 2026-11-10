@@ -65,7 +65,7 @@ public class ConteoControlador {
     }
 
     /**
-     * Lee y valida TODO el archivo. Si alguna línea tiene error no se procesa
+     * Lee y valida todo el archivo. Si alguna línea tiene error no se procesa
      * nada y se informan las líneas con error. El stock del sistema se toma
      * de la base de datos en este momento, no del archivo.
      */

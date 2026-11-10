@@ -54,6 +54,8 @@
     </dependencies>
 
     <build>
+        <!-- Nombre del archivo ejecutable: target/Aristools.jar -->
+        <finalName>Aristools</finalName>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -69,6 +71,52 @@
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>exec-maven-plugin</artifactId>
                 <version>3.1.0</version>
+            </plugin>
+            <!--
+              .jar ejecutable (se abre con doble clic): incluye las librerías
+              (MySQL, BCrypt, FlatLaf) y deja por fuera db.properties, para que
+              la contraseña de MySQL nunca quede dentro del ejecutable.
+              Se genera con: mvn clean package
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>3.5.1</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+                        <configuration>
+                            <createDependencyReducedPom>false</createDependencyReducedPom>
+                            <filters>
+                                <filter>
+                                    <artifact>com.aristools:aristools</artifact>
+                                    <excludes>
+                                        <exclude>db.properties</exclude>
+                                    </excludes>
+                                </filter>
+                                <filter>
+                                    <artifact>*:*</artifact>
+                                    <excludes>
+                                        <exclude>META-INF/*.SF</exclude>
+                                        <exclude>META-INF/*.DSA</exclude>
+                                        <exclude>META-INF/*.RSA</exclude>
+                                        <exclude>module-info.class</exclude>
+                                    </excludes>
+                                </filter>
+                            </filters>
+                            <transformers>
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                                    <mainClass>com.aristools.Main</mainClass>
+                                </transformer>
+                                <!-- Une los archivos de servicios (necesario para el driver de MySQL) -->
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+                            </transformers>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>

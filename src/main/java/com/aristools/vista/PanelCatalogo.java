@@ -257,9 +257,15 @@ public abstract class PanelCatalogo<T> extends JPanel implements Recargable {
 
     private JPanel crearPanelFormulario() {
         construirFormulario();
-        JPanel tarjeta = new JPanel(new BorderLayout(0, 12));
+        // Ancho fijo de 400 px, pero el alto lo calculan sus componentes: así, si la
+        // pantalla es baja, aparece la barra de desplazamiento y nada se monta encima.
+        JPanel tarjeta = new JPanel(new BorderLayout(0, 12)) {
+            @Override
+            public Dimension getPreferredSize() {
+                return new Dimension(400, super.getPreferredSize().height);
+            }
+        };
         tarjeta.setBackground(Tema.BLANCO);
-        tarjeta.setPreferredSize(new Dimension(400, 0));
         tarjeta.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(Tema.BORDE),
                 BorderFactory.createEmptyBorder(16, 18, 16, 18)));

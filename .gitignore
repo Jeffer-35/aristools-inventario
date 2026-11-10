@@ -1,8 +1,9 @@
 # Archivos generados por Maven al compilar
 target/
 
-# Contiene la contraseña de MySQL: no se sube a GitHub
-src/main/resources/db.properties
+# Contiene la contraseña de MySQL: no se sube a GitHub, esté en la carpeta que esté
+# (db.properties.ejemplo sí se sube porque no tiene contraseña)
+db.properties
 
 # Respaldos de la base de datos (pueden tener datos reales)
 database/respaldos/
@@ -14,3 +15,6 @@ database/respaldos/
 .classpath
 .project
 .settings/
+nbactions.xml
+nb-configuration.xml
+nbproject/
