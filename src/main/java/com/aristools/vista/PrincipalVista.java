@@ -1,6 +1,7 @@
 package com.aristools.vista;
 
 import com.aristools.controlador.LoginControlador;
+import com.aristools.modelo.Naturaleza;
 import com.aristools.modelo.Rol;
 import com.aristools.modelo.Usuario;
 import com.aristools.seguridad.Accion;
@@ -190,10 +191,7 @@ public class PrincipalVista extends JFrame implements ActionListener {
         }
     }
 
-    /**
-     * Crea el panel de cada opción del menú. En la parte 9.4 se
-     * reemplaza cada PanelEnConstruccion por el panel real.
-     */
+    /** Crea el panel de cada opción del menú la primera vez que se abre. */
     private JPanel crearPanel(String carta) {
         return switch (carta) {
             case USUARIOS -> new UsuariosPanel();
@@ -202,7 +200,10 @@ public class PrincipalVista extends JFrame implements ActionListener {
             case CONFIGURACION -> new ParametrosPanel();
             case MOVIMIENTOS -> new MovimientosPanel();
             case CONTEO -> new ConteoPanel();
-            case AUTORIZAR_ENTRADAS, AUTORIZACIONES, EXISTENCIAS, REPORTES -> new PanelEnConstruccion(carta, "parte 9.4");
+            case AUTORIZAR_ENTRADAS -> new AutorizacionesPanel(Naturaleza.ENTRADA);
+            case AUTORIZACIONES -> new AutorizacionesPanel(Naturaleza.SALIDA);
+            case EXISTENCIAS -> new ExistenciasPanel();
+            case REPORTES -> new ReportesPanel();
             default -> new PanelEnConstruccion(carta, "siguiente parte");
         };
     }

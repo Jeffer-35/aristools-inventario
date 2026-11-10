@@ -2,16 +2,20 @@ package com.aristools.controlador;
 
 import com.aristools.dao.ExistenciaDAO;
 import com.aristools.dao.ReporteDAO;
+import com.aristools.dao.TipoMovimientoDAO;
 import com.aristools.modelo.Existencia;
 import com.aristools.modelo.FiltroMovimiento;
 import com.aristools.modelo.LineaKardex;
 import com.aristools.modelo.Movimiento;
+import com.aristools.modelo.Naturaleza;
+import com.aristools.modelo.TipoMovimiento;
 import com.aristools.modelo.Usuario;
 import com.aristools.seguridad.Accion;
 import com.aristools.seguridad.Sesion;
 import com.aristools.util.NegocioException;
 import java.sql.SQLException;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -29,6 +33,30 @@ public class ReporteControlador {
 
     private final ExistenciaDAO existenciaDAO = new ExistenciaDAO();
     private final ReporteDAO reporteDAO = new ReporteDAO();
+    private final TipoMovimientoDAO tipoDAO = new TipoMovimientoDAO();
+
+    /**
+     * Tipos de movimiento para el filtro de reportes, recortados al alcance
+     * del rol: el Jefe de Compras solo ve compras y devoluciones; el Supervisor,
+     * mermas, daños, devoluciones a proveedor y ajustes; el Administrador, todos.
+     */
+    public List<TipoMovimiento> listarTiposReporte() {
+        Sesion.exigir(Accion.VER_REPORTES);
+        try {
+            Set<String> alcance = alcance();
+            List<TipoMovimiento> tipos = new ArrayList<>();
+            for (Naturaleza n : Naturaleza.values()) {
+                for (TipoMovimiento t : tipoDAO.listarPorNaturaleza(n)) {
+                    if (alcance == null || alcance.contains(t.getNombre())) {
+                        tipos.add(t);
+                    }
+                }
+            }
+            return tipos;
+        } catch (SQLException e) {
+            throw NegocioException.deBaseDeDatos(e);
+        }
+    }
 
     /** Consulta de solo lectura con filtros opcionales (null = todos). */
     public List<Existencia> consultarExistencias(String filtro, Integer idCategoria, Integer idBodega, boolean inactivos) {
