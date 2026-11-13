@@ -52,4 +52,16 @@ public class ParametroDAO {
             }
         }
     }
+
+    /** Crea el parámetro si no existe o cambia su valor (la clave es única). */
+    public void guardar(Connection con, String clave, String valor, String descripcion) throws SQLException {
+        try (PreparedStatement ps = con.prepareStatement(
+                "INSERT INTO parametro (clave, valor, descripcion) VALUES (?, ?, ?) "
+              + "ON DUPLICATE KEY UPDATE valor = VALUES(valor)")) {
+            ps.setString(1, clave);
+            ps.setString(2, valor);
+            ps.setString(3, descripcion);
+            ps.executeUpdate();
+        }
+    }
 }

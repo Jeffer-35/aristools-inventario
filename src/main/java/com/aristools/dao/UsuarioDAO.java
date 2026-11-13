@@ -22,6 +22,7 @@ public class UsuarioDAO {
     private static final String SELECT =
             "SELECT u.id_usuario, u.nombre_completo, u.documento, u.correo, u.nombre_usuario, "
           + "u.contrasena_hash, u.estado, u.intentos_fallidos, u.ultimo_acceso, "
+          + "u.fecha_cambio_clave, u.debe_cambiar_clave, "
           + "r.id_rol, r.nombre_rol, r.descripcion "
           + "FROM usuario u JOIN rol r ON r.id_rol = u.id_rol ";
 
@@ -52,7 +53,8 @@ public class UsuarioDAO {
     /** Crea la cuenta y devuelve el id generado. */
     public int insertar(Usuario u) throws SQLException {
         String sql = "INSERT INTO usuario (nombre_completo, documento, correo, nombre_usuario, "
-                   + "contrasena_hash, id_rol, estado) VALUES (?, ?, ?, ?, ?, ?, ?)";
+                   + "contrasena_hash, id_rol, estado, fecha_cambio_clave, debe_cambiar_clave) "
+                   + "VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), ?)";
         try (Connection con = ConexionDB.obtener();
              PreparedStatement ps = con.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             ps.setString(1, u.getNombreCompleto());
@@ -62,6 +64,7 @@ public class UsuarioDAO {
             ps.setString(5, u.getContrasenaHash());
             ps.setInt(6, u.getRol().getIdRol());
             ps.setString(7, u.getEstado().name());
+            ps.setBoolean(8, u.isDebeCambiarClave());
             ps.executeUpdate();
             try (ResultSet rs = ps.getGeneratedKeys()) {
                 rs.next();
@@ -101,12 +104,18 @@ public class UsuarioDAO {
     }
 
     /** Guarda el nuevo hash al restablecer la contraseña. */
-    public void actualizarClave(int id, String hash) throws SQLException {
+    /**
+     * Guarda una contraseña nueva y reinicia su vigencia.
+     * @param debeCambiar true si es una clave temporal (el usuario la cambiará al ingresar)
+     */
+    public void actualizarClave(int id, String hash, boolean debeCambiar) throws SQLException {
         try (Connection con = ConexionDB.obtener();
              PreparedStatement ps = con.prepareStatement(
-                     "UPDATE usuario SET contrasena_hash = ?, intentos_fallidos = 0 WHERE id_usuario = ?")) {
+                     "UPDATE usuario SET contrasena_hash = ?, intentos_fallidos = 0, "
+                   + "fecha_cambio_clave = NOW(), debe_cambiar_clave = ? WHERE id_usuario = ?")) {
             ps.setString(1, hash);
-            ps.setInt(2, id);
+            ps.setBoolean(2, debeCambiar);
+            ps.setInt(3, id);
             ps.executeUpdate();
         }
     }
@@ -149,9 +158,13 @@ public class UsuarioDAO {
     private Usuario mapear(ResultSet rs) throws SQLException {
         Rol rol = new Rol(rs.getInt("id_rol"), rs.getString("nombre_rol"), rs.getString("descripcion"));
         Timestamp acceso = rs.getTimestamp("ultimo_acceso");
-        return new Usuario(rs.getInt("id_usuario"), rs.getString("nombre_completo"), rs.getString("documento"),
+        Timestamp cambio = rs.getTimestamp("fecha_cambio_clave");
+        Usuario u = new Usuario(rs.getInt("id_usuario"), rs.getString("nombre_completo"), rs.getString("documento"),
                 rs.getString("correo"), rs.getString("nombre_usuario"), rs.getString("contrasena_hash"), rol,
                 EstadoUsuario.valueOf(rs.getString("estado")), rs.getInt("intentos_fallidos"),
                 acceso == null ? null : acceso.toLocalDateTime());
+        u.setFechaCambioClave(cambio == null ? null : cambio.toLocalDateTime());
+        u.setDebeCambiarClave(rs.getBoolean("debe_cambiar_clave"));
+        return u;
     }
 }

@@ -96,8 +96,17 @@ public class LoginVista extends JDialog {
     /** Envía los datos al controlador y muestra el mensaje si algo falla. */
     private void ingresar() {
         try {
-            usuarioAutenticado = controlador.iniciarSesion(txtUsuario.getText(),
+            Usuario u = controlador.iniciarSesion(txtUsuario.getText(),
                     new String(txtClave.getPassword()));
+            String motivo = controlador.motivoCambioClave(u);   // clave temporal o vencida
+            if (motivo != null && !CambiarClaveDialogo.mostrar(this, motivo, true)) {
+                controlador.cerrarSesion();
+                lblMensaje.setText("Debe cambiar su contraseña para ingresar al sistema.");
+                txtClave.setText("");
+                pack();
+                return;
+            }
+            usuarioAutenticado = u;
             dispose();
         } catch (NegocioException ex) {
             lblMensaje.setText(ex.getMessage());

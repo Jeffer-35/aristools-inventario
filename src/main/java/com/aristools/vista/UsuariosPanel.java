@@ -77,8 +77,13 @@ public class UsuariosPanel extends PanelCatalogo<Usuario> {
         agregarCampo("Correo", txtCorreo);
         agregarCampo("Usuario", txtUsuario);
         agregarCampo("Rol", cmbRol);
-        agregarCampo("Contraseña temporal", txtClave);
-        agregarNota("La contraseña temporal solo se pide al crear la cuenta (mínimo 8 caracteres). "
+        javax.swing.JPanel claveConCasilla = new javax.swing.JPanel(new java.awt.BorderLayout(8, 0));
+        claveConCasilla.setOpaque(false);
+        claveConCasilla.add(txtClave, java.awt.BorderLayout.CENTER);
+        claveConCasilla.add(MostrarClave.casilla("Ver", txtClave), java.awt.BorderLayout.EAST);
+        agregarCampo("Contraseña temporal", claveConCasilla);
+        agregarNota("La contraseña temporal solo se pide al crear la cuenta: mínimo 8 caracteres, con mayúscula, "
+                + "minúscula, número y símbolo. El usuario deberá cambiarla en su primer ingreso. "
                 + "Aviso de privacidad: los datos personales se tratan conforme a la Ley 1581 de 2012 "
                 + "y solo se usan para el control de acceso al sistema.");
     }
@@ -147,7 +152,10 @@ public class UsuariosPanel extends PanelCatalogo<Usuario> {
         }
         JPasswordField campo = new JPasswordField();
         int opcion = JOptionPane.showConfirmDialog(this, new Object[]{
-            "Nueva contraseña temporal para " + seleccionado.getNombreUsuario() + " (mínimo 8 caracteres):", campo},
+            "<html>Nueva contraseña temporal para <b>" + seleccionado.getNombreUsuario() + "</b>.<br>"
+                + "Mínimo 8 caracteres, con mayúscula, minúscula, número y símbolo.<br>"
+                + "El usuario deberá cambiarla en su próximo ingreso.</html>", campo,
+            MostrarClave.casilla("Mostrar contraseña", campo)},
             "Restablecer contraseña", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
         if (opcion == JOptionPane.OK_OPTION) {
             ejecutar(() -> {

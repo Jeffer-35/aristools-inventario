@@ -18,6 +18,8 @@ public class Usuario {
     private EstadoUsuario estado;
     private int intentosFallidos;
     private LocalDateTime ultimoAcceso;
+    private LocalDateTime fechaCambioClave;   // último cambio de contraseña
+    private boolean debeCambiarClave;         // true = clave temporal asignada por el Administrador
 
     /** Constructor vacío: lo usan los DAO al leer filas de la base de datos. */
     public Usuario() {
@@ -155,4 +157,31 @@ public class Usuario {
         return nombreUsuario;
     }
 
+
+    /**
+     * Indica si la contraseña venció según los días de vigencia configurados.
+     * Con 0 días no vence nunca (recomendación NIST SP 800-63B).
+     */
+    public boolean claveVencida(int diasVigencia, LocalDateTime ahora) {
+        if (diasVigencia <= 0) {
+            return false;
+        }
+        return fechaCambioClave == null || !ahora.isBefore(fechaCambioClave.plusDays(diasVigencia));
+    }
+
+    public LocalDateTime getFechaCambioClave() {
+        return fechaCambioClave;
+    }
+
+    public void setFechaCambioClave(LocalDateTime fechaCambioClave) {
+        this.fechaCambioClave = fechaCambioClave;
+    }
+
+    public boolean isDebeCambiarClave() {
+        return debeCambiarClave;
+    }
+
+    public void setDebeCambiarClave(boolean debeCambiarClave) {
+        this.debeCambiarClave = debeCambiarClave;
+    }
 }

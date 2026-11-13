@@ -44,8 +44,10 @@ public class PrimerAdminDialogo extends JDialog {
         agregar(campos, "Documento", txtDocumento);
         agregar(campos, "Correo", txtCorreo);
         agregar(campos, "Usuario", txtUsuario);
-        agregar(campos, "Contraseña (mínimo 8)", txtClave);
+        agregar(campos, "Contraseña segura", txtClave);
         agregar(campos, "Confirmar contraseña", txtConfirmar);
+        campos.add(new JLabel(""));
+        campos.add(MostrarClave.casilla("Mostrar contraseñas", txtClave, txtConfirmar));
         fondo.add(campos, BorderLayout.CENTER);
 
         JPanel botones = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));

@@ -52,4 +52,44 @@ public class ParametroControlador {
             throw NegocioException.deBaseDeDatos(e);
         }
     }
+
+    /**
+     * Guarda los parámetros generales y los de seguridad en una transacción.
+     * @param diasVigencia días de vigencia de la contraseña (0 = no vence)
+     * @param minutosInactividad minutos sin actividad para cerrar la sesión (0 = desactivado)
+     */
+    public void guardar(String nombre, int minimo, int maximo, int diasVigencia, int minutosInactividad) {
+        Sesion.exigir(Accion.CONFIGURAR_PARAMETROS);
+        Validador.textoObligatorio(nombre, "nombre del establecimiento");
+        if (minimo < 0 || maximo < 0) {
+            throw new NegocioException("Los umbrales no pueden ser negativos.");
+        }
+        if (minimo > maximo) {
+            throw new NegocioException("El umbral mínimo no puede ser mayor que el máximo.");
+        }
+        if (diasVigencia < 0 || diasVigencia > 365) {
+            throw new NegocioException("La vigencia de la contraseña debe estar entre 0 y 365 días (0 = no vence).");
+        }
+        if (minutosInactividad < 0 || minutosInactividad > 240) {
+            throw new NegocioException("El cierre por inactividad debe estar entre 0 y 240 minutos (0 = desactivado).");
+        }
+        try (Connection con = ConexionDB.obtener()) {
+            con.setAutoCommit(false);
+            try {
+                parametroDAO.actualizar(con, "nombre_establecimiento", nombre.trim());
+                parametroDAO.actualizar(con, "stock_minimo_defecto", String.valueOf(minimo));
+                parametroDAO.actualizar(con, "stock_maximo_defecto", String.valueOf(maximo));
+                parametroDAO.guardar(con, "dias_vigencia_clave", String.valueOf(diasVigencia),
+                        "Días de vigencia de la contraseña (0 = sin vencimiento, recomendación NIST SP 800-63B)");
+                parametroDAO.guardar(con, "minutos_inactividad", String.valueOf(minutosInactividad),
+                        "Minutos sin actividad para cerrar la sesión (0 = desactivado)");
+                con.commit();
+            } catch (SQLException | RuntimeException e) {
+                con.rollback();
+                throw e;
+            }
+        } catch (SQLException e) {
+            throw NegocioException.deBaseDeDatos(e);
+        }
+    }
 }

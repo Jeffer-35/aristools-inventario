@@ -28,6 +28,8 @@ public class ParametrosPanel extends JPanel implements Recargable {
     private final JTextField txtNombre = new JTextField();
     private final JTextField txtMinimo = new JTextField();
     private final JTextField txtMaximo = new JTextField();
+    private final JTextField txtVigencia = new JTextField();
+    private final JTextField txtInactividad = new JTextField();
 
     public ParametrosPanel() {
         setLayout(new BorderLayout(0, 18));
@@ -49,6 +51,8 @@ public class ParametrosPanel extends JPanel implements Recargable {
         fila = agregar(tarjeta, fila, "Nombre del establecimiento", txtNombre);
         fila = agregar(tarjeta, fila, "Stock mínimo por defecto", txtMinimo);
         fila = agregar(tarjeta, fila, "Stock máximo por defecto", txtMaximo);
+        fila = agregar(tarjeta, fila, "Vigencia de la contraseña (días)", txtVigencia);
+        fila = agregar(tarjeta, fila, "Cierre por inactividad (minutos)", txtInactividad);
 
         GridBagConstraints c = new GridBagConstraints();
         c.gridy = fila++;
@@ -58,7 +62,9 @@ public class ParametrosPanel extends JPanel implements Recargable {
         c.insets = new Insets(10, 0, 10, 0);
         JLabel nota = new JLabel("<html><body style='width:420px'>Los umbrales por defecto se aplican a los "
                 + "productos que no tienen mínimo o máximo propio. Cambiarlos no modifica los umbrales que ya "
-                + "están definidos en cada producto.</body></html>");
+                + "están definidos en cada producto.<br><br><b>Seguridad:</b> con vigencia 0 la contraseña no "
+                + "vence (recomendación NIST SP 800-63B); escriba 15 o 30 si la política de la empresa exige "
+                + "cambiarla. Con 0 minutos no se cierra la sesión por inactividad.</body></html>");
         nota.setFont(Tema.NORMAL.deriveFont(12f));
         nota.setForeground(Tema.TEXTO_SUAVE);
         tarjeta.add(nota, c);
@@ -97,12 +103,16 @@ public class ParametrosPanel extends JPanel implements Recargable {
     /** Carga los valores actuales desde la base. */
     @Override
     public void recargar() {
+        txtVigencia.setText("0");        // valores si la base aún no tiene estos parámetros
+        txtInactividad.setText("15");
         try {
             for (Parametro p : controlador.listar()) {
                 switch (p.getClave()) {
                     case "nombre_establecimiento" -> txtNombre.setText(p.getValor());
                     case "stock_minimo_defecto" -> txtMinimo.setText(p.getValor());
                     case "stock_maximo_defecto" -> txtMaximo.setText(p.getValor());
+                    case "dias_vigencia_clave" -> txtVigencia.setText(p.getValor());
+                    case "minutos_inactividad" -> txtInactividad.setText(p.getValor());
                     default -> { }
                 }
             }
@@ -113,9 +123,13 @@ public class ParametrosPanel extends JPanel implements Recargable {
 
     private void guardar() {
         try {
+            int minutos = entero(txtInactividad.getText(), "cierre por inactividad");
             controlador.guardar(txtNombre.getText(),
                     entero(txtMinimo.getText(), "stock mínimo por defecto"),
-                    entero(txtMaximo.getText(), "stock máximo por defecto"));
+                    entero(txtMaximo.getText(), "stock máximo por defecto"),
+                    entero(txtVigencia.getText(), "vigencia de la contraseña"),
+                    minutos);
+            MonitorInactividad.aplicar(minutos);   // el nuevo tiempo rige desde ya, sin cerrar sesión
             Tema.info(this, "Configuración guardada correctamente.");
             recargar();
         } catch (NegocioException ex) {

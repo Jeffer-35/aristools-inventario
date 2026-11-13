@@ -37,6 +37,8 @@ CREATE TABLE usuario (
     estado            VARCHAR(10)  NOT NULL DEFAULT 'ACTIVO',
     intentos_fallidos INT          NOT NULL DEFAULT 0,
     ultimo_acceso     DATETIME     NULL,
+    fecha_cambio_clave DATETIME    NULL,                    -- último cambio de contraseña (vencimiento)
+    debe_cambiar_clave BOOLEAN     NOT NULL DEFAULT FALSE,  -- clave temporal: cambiarla al ingresar
     CONSTRAINT pk_usuario PRIMARY KEY (id_usuario),
     CONSTRAINT uq_usuario_documento UNIQUE (documento),
     CONSTRAINT uq_usuario_correo UNIQUE (correo),
@@ -227,7 +229,9 @@ INSERT INTO tipo_movimiento (nombre, naturaleza, requiere_autorizacion, id_rol_a
 INSERT INTO parametro (clave, valor, descripcion) VALUES
 ('nombre_establecimiento', 'Ferretería Aristools', 'Nombre que aparece en pantallas y reportes'),
 ('stock_minimo_defecto',   '10',  'Umbral mínimo para productos sin stock mínimo propio'),
-('stock_maximo_defecto',   '100', 'Umbral máximo para productos sin stock máximo propio');
+('stock_maximo_defecto',   '100', 'Umbral máximo para productos sin stock máximo propio'),
+('dias_vigencia_clave',    '0',   'Días de vigencia de la contraseña (0 = sin vencimiento, recomendación NIST SP 800-63B)'),
+('minutos_inactividad',    '15',  'Minutos sin actividad para cerrar la sesión (0 = desactivado)');
 
 
 -- Nota para la aplicación:

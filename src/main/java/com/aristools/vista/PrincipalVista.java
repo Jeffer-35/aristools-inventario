@@ -51,6 +51,8 @@ public class PrincipalVista extends JFrame implements ActionListener {
     public static final String REPORTES = "Reportes";
     public static final String CONFIGURACION = "Configuración";
     private static final String CERRAR_SESION = "Cerrar sesión";
+    private static final String CAMBIAR_CLAVE = "Cambiar mi contraseña";
+    private MonitorInactividad monitor;   // cierra la sesión si nadie usa el programa
 
     private final Usuario usuario;
     private final CardLayout cardLayout = new CardLayout();
@@ -77,6 +79,13 @@ public class PrincipalVista extends JFrame implements ActionListener {
         panelContenedor.add(PanelDesplazable.envolver(inicioPanel), INICIO);
         paneles.put(INICIO, inicioPanel);
         mostrar(INICIO);
+        // Cierre automático de la sesión por inactividad (parámetro minutos_inactividad)
+        int minutos = new LoginControlador().minutosInactividad();
+        monitor = MonitorInactividad.iniciar(minutos, () -> {
+            Tema.info(this, "La sesión se cerró porque el sistema estuvo sin uso el tiempo "
+                    + "configurado. Inicie sesión de nuevo.");
+            cerrarSesion();
+        });
     }
 
     /** Barra superior (zona NORTH). */
@@ -132,6 +141,7 @@ public class PrincipalVista extends JFrame implements ActionListener {
         agregarOpcion(menu, CONFIGURACION, Permisos.puede(r, Accion.CONFIGURAR_PARAMETROS));
 
         menu.add(Box.createVerticalGlue());
+        agregarOpcion(menu, CAMBIAR_CLAVE, true);
         agregarOpcion(menu, CERRAR_SESION, true);
         return menu;
     }
@@ -166,6 +176,8 @@ public class PrincipalVista extends JFrame implements ActionListener {
         String opcion = e.getActionCommand();
         if (CERRAR_SESION.equals(opcion)) {
             cerrarSesion();
+        } else if (CAMBIAR_CLAVE.equals(opcion)) {
+            CambiarClaveDialogo.mostrar(this, null, false);
         } else {
             mostrar(opcion);
         }
@@ -210,6 +222,10 @@ public class PrincipalVista extends JFrame implements ActionListener {
 
     /** Cierra la sesión, vuelve al inicio de sesión y abre una ventana nueva para el siguiente usuario. */
     private void cerrarSesion() {
+        if (monitor != null) {
+            monitor.detener();
+            monitor = null;
+        }
         new LoginControlador().cerrarSesion();
         dispose();
         Usuario siguiente = LoginVista.mostrarLogin();

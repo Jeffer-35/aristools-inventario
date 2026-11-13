@@ -19,8 +19,6 @@ import java.util.List;
  */
 public class UsuarioControlador {
 
-    private static final int LONGITUD_MINIMA_CLAVE = 8;
-
     private final UsuarioDAO usuarioDAO = new UsuarioDAO();
     private final RolDAO rolDAO = new RolDAO();
 
@@ -59,8 +57,9 @@ public class UsuarioControlador {
         }
         try {
             if (u.getIdUsuario() == 0) {
-                validarClave(clave);
+                Validador.claveSegura(clave);
                 u.setContrasenaHash(PasswordUtil.encriptar(clave));
+                u.setDebeCambiarClave(true);   // clave temporal: el usuario la cambia al ingresar
                 u.setIdUsuario(usuarioDAO.insertar(u));
             } else {
                 boolean sigueSiendoAdminActivo = u.getRol().esAdministrador() && u.getEstado() == EstadoUsuario.ACTIVO;
@@ -86,17 +85,12 @@ public class UsuarioControlador {
     /** Asigna una contraseña temporal; se guarda solo su hash. */
     public void restablecerContrasena(int id, String clave) {
         Sesion.exigir(Accion.GESTIONAR_USUARIOS);
-        validarClave(clave);
+        Validador.claveSegura(clave);
         try {
-            usuarioDAO.actualizarClave(id, PasswordUtil.encriptar(clave));
+            // clave temporal: el usuario deberá cambiarla en su próximo ingreso
+            usuarioDAO.actualizarClave(id, PasswordUtil.encriptar(clave), true);
         } catch (SQLException e) {
             throw NegocioException.deBaseDeDatos(e);
-        }
-    }
-
-    private void validarClave(String clave) {
-        if (clave == null || clave.length() < LONGITUD_MINIMA_CLAVE) {
-            throw new NegocioException("La contraseña debe tener al menos " + LONGITUD_MINIMA_CLAVE + " caracteres.");
         }
     }
 
