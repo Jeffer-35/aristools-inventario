@@ -1,5 +1,6 @@
 package com.aristools.controlador;
 
+import com.aristools.util.Cambios;
 import com.aristools.dao.CategoriaDAO;
 import com.aristools.dao.ProductoDAO;
 import com.aristools.modelo.Categoria;
@@ -54,8 +55,25 @@ public class ProductoControlador {
             p.setCodigo(p.getCodigo().trim());
             if (p.getIdProducto() == 0) {
                 p.setIdProducto(productoDAO.insertar(p));
+                Auditoria.registrar("CREAR_PRODUCTO", "Creó " + p.getCodigo() + " " + p.getNombre()
+                        + " (costo " + p.getCostoReferencia().stripTrailingZeros().toPlainString() + ")");
             } else {
+                Producto anterior = productoDAO.buscarPorId(p.getIdProducto());
                 productoDAO.actualizar(p);
+                if (anterior != null) {
+                    Cambios c = new Cambios()
+                            .campo("código", anterior.getCodigo(), p.getCodigo())
+                            .campo("nombre", anterior.getNombre(), p.getNombre())
+                            .campo("descripción", anterior.getDescripcion(), p.getDescripcion())
+                            .campo("categoría", nombreCategoria(anterior.getCategoria()), nombreCategoria(p.getCategoria()))
+                            .campo("unidad", anterior.getUnidadMedida(), p.getUnidadMedida())
+                            .campo("costo", anterior.getCostoReferencia(), p.getCostoReferencia())
+                            .campo("stock mínimo", anterior.getStockMinimo(), p.getStockMinimo())
+                            .campo("stock máximo", anterior.getStockMaximo(), p.getStockMaximo());
+                    if (c.hayCambios()) {
+                        Auditoria.registrar("MODIFICAR_PRODUCTO", p.getCodigo() + " " + p.getNombre() + ": " + c);
+                    }
+                }
             }
         } catch (SQLException e) {
             throw NegocioException.deBaseDeDatos(e);
@@ -66,7 +84,12 @@ public class ProductoControlador {
     public void cambiarEstadoProducto(int id, EstadoRegistro e) {
         Sesion.exigir(Accion.GESTIONAR_CATALOGOS);
         try {
+            Producto anterior = productoDAO.buscarPorId(id);
             productoDAO.cambiarEstado(id, e);
+            if (anterior != null) {
+                Auditoria.registrar("ESTADO_PRODUCTO", anterior.getCodigo() + " " + anterior.getNombre() + ": "
+                        + anterior.getEstado() + " → " + e);
+            }
         } catch (SQLException ex) {
             throw NegocioException.deBaseDeDatos(ex);
         }
@@ -86,9 +109,20 @@ public class ProductoControlador {
         try {
             if (c.getIdCategoria() == 0) {
                 c.setIdCategoria(categoriaDAO.insertar(c));
+                Auditoria.registrar("CREAR_CATEGORIA", "Creó la categoría " + c.getNombre());
             } else {
                 verificarInactivacion(c.getIdCategoria(), c.getEstado());
+                Categoria anterior = buscarCategoria(c.getIdCategoria());
                 categoriaDAO.actualizar(c);
+                if (anterior != null) {
+                    Cambios cambios = new Cambios()
+                            .campo("nombre", anterior.getNombre(), c.getNombre())
+                            .campo("descripción", anterior.getDescripcion(), c.getDescripcion())
+                            .campo("estado", anterior.getEstado(), c.getEstado());
+                    if (cambios.hayCambios()) {
+                        Auditoria.registrar("MODIFICAR_CATEGORIA", "Categoría " + anterior.getNombre() + ": " + cambios);
+                    }
+                }
             }
         } catch (SQLException e) {
             throw NegocioException.deBaseDeDatos(e);
@@ -99,7 +133,12 @@ public class ProductoControlador {
         Sesion.exigir(Accion.GESTIONAR_CATALOGOS);
         try {
             verificarInactivacion(id, e);
+            Categoria anterior = buscarCategoria(id);
             categoriaDAO.cambiarEstado(id, e);
+            if (anterior != null) {
+                Auditoria.registrar("ESTADO_CATEGORIA", "Categoría " + anterior.getNombre() + ": "
+                        + anterior.getEstado() + " → " + e);
+            }
         } catch (SQLException ex) {
             throw NegocioException.deBaseDeDatos(ex);
         }
@@ -110,5 +149,13 @@ public class ProductoControlador {
         if (nuevo == EstadoRegistro.INACTIVO && categoriaDAO.tieneProductosActivos(idCategoria)) {
             throw new NegocioException("No se puede inactivar: la categoría tiene productos activos.");
         }
+    }
+
+    private Categoria buscarCategoria(int id) throws SQLException {
+        return categoriaDAO.listar(true).stream().filter(x -> x.getIdCategoria() == id).findFirst().orElse(null);
+    }
+
+    private static String nombreCategoria(Categoria c) {
+        return c == null ? null : c.getNombre();
     }
 }

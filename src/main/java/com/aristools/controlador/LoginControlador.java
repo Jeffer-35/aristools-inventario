@@ -39,17 +39,26 @@ public class LoginControlador {
         try {
             Usuario u = usuarioDAO.buscarPorNombreUsuario(usuario.trim());
             if (u == null) {
+                Auditoria.registrar(null, usuario.trim(), "INTENTO_FALLIDO", "El usuario escrito no existe");
                 throw new NegocioException("Usuario o contraseña incorrectos.");
             }
             if (u.estaBloqueado()) {
+                Auditoria.registrar(u.getIdUsuario(), u.getNombreUsuario(), "INTENTO_FALLIDO",
+                        "Intento de ingreso con la cuenta bloqueada");
                 throw new NegocioException("La cuenta está bloqueada. Solicite al Administrador que la reactive.");
             }
             if (!u.estaActivo()) {
+                Auditoria.registrar(u.getIdUsuario(), u.getNombreUsuario(), "INTENTO_FALLIDO",
+                        "Intento de ingreso con la cuenta inactiva");
                 throw new NegocioException("El usuario está inactivo y no tiene acceso al sistema.");
             }
             if (!PasswordUtil.verificar(clave, u.getContrasenaHash())) {
                 u.registrarIntentoFallido();
                 usuarioDAO.actualizarIntentos(u);
+                Auditoria.registrar(u.getIdUsuario(), u.getNombreUsuario(),
+                        u.estaBloqueado() ? "CUENTA_BLOQUEADA" : "INTENTO_FALLIDO",
+                        u.estaBloqueado() ? "Cuenta bloqueada al tercer intento fallido"
+                                : "Contraseña incorrecta (intento " + u.getIntentosFallidos() + " de 3)");
                 if (u.estaBloqueado()) {
                     throw new NegocioException("Tercer intento fallido: la cuenta quedó bloqueada. "
                             + "Solicite al Administrador que la reactive.");
@@ -59,6 +68,7 @@ public class LoginControlador {
             usuarioDAO.registrarAcceso(u.getIdUsuario());
             u.reiniciarIntentos();
             Sesion.iniciar(u);
+            Auditoria.registrar("INICIO_SESION", "Ingreso correcto");
             return u;
         } catch (SQLException e) {
             throw new NegocioException(SIN_CONEXION);
@@ -67,6 +77,9 @@ public class LoginControlador {
 
     /** Cierra la sesión y descarta los datos del usuario. */
     public void cerrarSesion() {
+        if (Sesion.getUsuario() != null) {
+            Auditoria.registrar("CIERRE_SESION", "Cerró la sesión");
+        }
         Sesion.cerrar();
     }
 
@@ -102,6 +115,8 @@ public class LoginControlador {
             u.setContrasenaHash(PasswordUtil.encriptar(clave));
             u.setDebeCambiarClave(false);   // la eligió el mismo administrador
             u.setIdUsuario(usuarioDAO.insertar(u));
+            Auditoria.registrar(u.getIdUsuario(), u.getNombreUsuario(), "CREAR_USUARIO",
+                    "Creó el primer Administrador del Sistema");
         } catch (SQLException e) {
             throw new NegocioException("No se pudo crear el administrador: el usuario, el documento o el correo ya existen.");
         }
@@ -150,7 +165,10 @@ public class LoginControlador {
         Validador.claveSegura(nueva);
         try {
             String hash = PasswordUtil.encriptar(nueva);
+            boolean eraTemporal = u.isDebeCambiarClave();
             usuarioDAO.actualizarClave(u.getIdUsuario(), hash, false);
+            Auditoria.registrar("CAMBIO_CLAVE", eraTemporal ? "Cambió su contraseña temporal por una propia"
+                    : "Cambió su contraseña");
             u.setContrasenaHash(hash);
             u.setDebeCambiarClave(false);
             u.setFechaCambioClave(LocalDateTime.now());

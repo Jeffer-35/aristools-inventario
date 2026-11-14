@@ -1,5 +1,6 @@
 package com.aristools.controlador;
 
+import com.aristools.util.Cambios;
 import com.aristools.dao.ProveedorDAO;
 import com.aristools.modelo.EstadoRegistro;
 import com.aristools.modelo.Proveedor;
@@ -34,9 +35,24 @@ public class ProveedorControlador {
         try {
             if (p.getIdProveedor() == 0) {
                 p.setIdProveedor(proveedorDAO.insertar(p));
+                Auditoria.registrar("CREAR_PROVEEDOR", "Creó el proveedor " + p.getRazonSocial() + " (NIT " + p.getNit() + ")");
             } else {
                 verificarInactivacion(p.getIdProveedor(), p.getEstado());
+                Proveedor anterior = buscar(p.getIdProveedor());
                 proveedorDAO.actualizar(p);
+                if (anterior != null) {
+                    Cambios c = new Cambios()
+                            .campo("NIT", anterior.getNit(), p.getNit())
+                            .campo("razón social", anterior.getRazonSocial(), p.getRazonSocial())
+                            .campo("contacto", anterior.getContacto(), p.getContacto())
+                            .campo("teléfono", anterior.getTelefono(), p.getTelefono())
+                            .campo("correo", anterior.getCorreo(), p.getCorreo())
+                            .campo("dirección", anterior.getDireccion(), p.getDireccion())
+                            .campo("estado", anterior.getEstado(), p.getEstado());
+                    if (c.hayCambios()) {
+                        Auditoria.registrar("MODIFICAR_PROVEEDOR", "Proveedor " + anterior.getRazonSocial() + ": " + c);
+                    }
+                }
             }
         } catch (SQLException e) {
             throw NegocioException.deBaseDeDatos(e);
@@ -47,7 +63,12 @@ public class ProveedorControlador {
         Sesion.exigir(Accion.GESTIONAR_PROVEEDORES);
         try {
             verificarInactivacion(id, e);
+            Proveedor anterior = buscar(id);
             proveedorDAO.cambiarEstado(id, e);
+            if (anterior != null) {
+                Auditoria.registrar("ESTADO_PROVEEDOR", "Proveedor " + anterior.getRazonSocial() + ": "
+                        + anterior.getEstado() + " → " + e);
+            }
         } catch (SQLException ex) {
             throw NegocioException.deBaseDeDatos(ex);
         }
@@ -58,5 +79,9 @@ public class ProveedorControlador {
         if (nuevo == EstadoRegistro.INACTIVO && proveedorDAO.tieneMovimientosPendientes(id)) {
             throw new NegocioException("No se puede inactivar: el proveedor tiene movimientos pendientes de autorización.");
         }
+    }
+
+    private Proveedor buscar(int id) throws SQLException {
+        return proveedorDAO.listar(true).stream().filter(x -> x.getIdProveedor() == id).findFirst().orElse(null);
     }
 }

@@ -16,7 +16,7 @@ public final class Permisos {
     private static final Map<String, Set<Accion>> MATRIZ = Map.of(
             "Administrador del Sistema", EnumSet.of(Accion.GESTIONAR_USUARIOS, Accion.GESTIONAR_CATALOGOS,
                     Accion.GESTIONAR_PROVEEDORES, Accion.CONFIGURAR_PARAMETROS,
-                    Accion.CONSULTAR_EXISTENCIAS, Accion.VER_REPORTES),
+                    Accion.CONSULTAR_EXISTENCIAS, Accion.VER_REPORTES, Accion.VER_BITACORA),
             "Almacenista", EnumSet.of(Accion.REGISTRAR_MOVIMIENTOS, Accion.REALIZAR_CONTEO,
                     Accion.CONSULTAR_EXISTENCIAS),
             "Jefe de Compras", EnumSet.of(Accion.GESTIONAR_PROVEEDORES, Accion.AUTORIZAR_ENTRADAS,

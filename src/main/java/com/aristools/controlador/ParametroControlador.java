@@ -5,11 +5,14 @@ import com.aristools.dao.ParametroDAO;
 import com.aristools.modelo.Parametro;
 import com.aristools.seguridad.Accion;
 import com.aristools.seguridad.Sesion;
+import com.aristools.util.Cambios;
 import com.aristools.util.NegocioException;
 import com.aristools.util.Validador;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Parámetros globales y umbrales por defecto (RF-015). Cambiarlos no altera
@@ -73,6 +76,8 @@ public class ParametroControlador {
         if (minutosInactividad < 0 || minutosInactividad > 240) {
             throw new NegocioException("El cierre por inactividad debe estar entre 0 y 240 minutos (0 = desactivado).");
         }
+        Map<String, String> antes = listar().stream()
+                .collect(Collectors.toMap(Parametro::getClave, Parametro::getValor, (a, b) -> a));
         try (Connection con = ConexionDB.obtener()) {
             con.setAutoCommit(false);
             try {
@@ -84,6 +89,15 @@ public class ParametroControlador {
                 parametroDAO.guardar(con, "minutos_inactividad", String.valueOf(minutosInactividad),
                         "Minutos sin actividad para cerrar la sesión (0 = desactivado)");
                 con.commit();
+                Cambios c = new Cambios()
+                        .campo("nombre del establecimiento", antes.get("nombre_establecimiento"), nombre.trim())
+                        .campo("stock mínimo por defecto", antes.get("stock_minimo_defecto"), minimo)
+                        .campo("stock máximo por defecto", antes.get("stock_maximo_defecto"), maximo)
+                        .campo("vigencia de la contraseña (días)", antes.get("dias_vigencia_clave"), diasVigencia)
+                        .campo("cierre por inactividad (minutos)", antes.get("minutos_inactividad"), minutosInactividad);
+                if (c.hayCambios()) {
+                    Auditoria.registrar("CAMBIO_PARAMETROS", c.toString());
+                }
             } catch (SQLException | RuntimeException e) {
                 con.rollback();
                 throw e;

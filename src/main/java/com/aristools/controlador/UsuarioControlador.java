@@ -1,5 +1,6 @@
 package com.aristools.controlador;
 
+import com.aristools.util.Cambios;
 import com.aristools.dao.RolDAO;
 import com.aristools.dao.UsuarioDAO;
 import com.aristools.modelo.EstadoUsuario;
@@ -61,10 +62,25 @@ public class UsuarioControlador {
                 u.setContrasenaHash(PasswordUtil.encriptar(clave));
                 u.setDebeCambiarClave(true);   // clave temporal: el usuario la cambia al ingresar
                 u.setIdUsuario(usuarioDAO.insertar(u));
+                Auditoria.registrar("CREAR_USUARIO", "Creó el usuario " + u.getNombreUsuario() + " ("
+                        + u.getRol().getNombreRol() + ") con contraseña temporal");
             } else {
                 boolean sigueSiendoAdminActivo = u.getRol().esAdministrador() && u.getEstado() == EstadoUsuario.ACTIVO;
                 verificarUltimoAdministrador(u.getIdUsuario(), sigueSiendoAdminActivo);
+                Usuario anterior = buscar(u.getIdUsuario());
                 usuarioDAO.actualizar(u);
+                if (anterior != null) {
+                    Cambios c = new Cambios()
+                            .campo("nombre", anterior.getNombreCompleto(), u.getNombreCompleto())
+                            .campo("documento", anterior.getDocumento(), u.getDocumento())
+                            .campo("correo", anterior.getCorreo(), u.getCorreo())
+                            .campo("usuario", anterior.getNombreUsuario(), u.getNombreUsuario())
+                            .campo("rol", anterior.getRol().getNombreRol(), u.getRol().getNombreRol())
+                            .campo("estado", anterior.getEstado(), u.getEstado());
+                    if (c.hayCambios()) {
+                        Auditoria.registrar("MODIFICAR_USUARIO", "Usuario " + anterior.getNombreUsuario() + ": " + c);
+                    }
+                }
             }
         } catch (SQLException e) {
             throw NegocioException.deBaseDeDatos(e);
@@ -76,7 +92,12 @@ public class UsuarioControlador {
         Sesion.exigir(Accion.GESTIONAR_USUARIOS);
         try {
             verificarUltimoAdministrador(id, e == EstadoUsuario.ACTIVO);
+            Usuario anterior = buscar(id);
             usuarioDAO.cambiarEstado(id, e);
+            if (anterior != null) {
+                Auditoria.registrar("ESTADO_USUARIO", "Usuario " + anterior.getNombreUsuario() + ": "
+                        + anterior.getEstado() + " → " + e);
+            }
         } catch (SQLException ex) {
             throw NegocioException.deBaseDeDatos(ex);
         }
@@ -89,9 +110,17 @@ public class UsuarioControlador {
         try {
             // clave temporal: el usuario deberá cambiarla en su próximo ingreso
             usuarioDAO.actualizarClave(id, PasswordUtil.encriptar(clave), true);
+            Usuario afectado = buscar(id);
+            Auditoria.registrar("RESTABLECER_CLAVE", "Restableció la contraseña de "
+                    + (afectado == null ? "el usuario " + id : afectado.getNombreUsuario())
+                    + " (temporal: deberá cambiarla al ingresar)");
         } catch (SQLException e) {
             throw NegocioException.deBaseDeDatos(e);
         }
+    }
+
+    private Usuario buscar(int id) throws SQLException {
+        return usuarioDAO.listar().stream().filter(x -> x.getIdUsuario() == id).findFirst().orElse(null);
     }
 
     // Si el usuario es hoy un administrador activo y dejará de serlo, debe existir otro.

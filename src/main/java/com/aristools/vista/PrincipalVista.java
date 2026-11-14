@@ -50,6 +50,7 @@ public class PrincipalVista extends JFrame implements ActionListener {
     public static final String EXISTENCIAS = "Existencias";
     public static final String REPORTES = "Reportes";
     public static final String CONFIGURACION = "Configuración";
+    public static final String BITACORA = "Bitácora";
     private static final String CERRAR_SESION = "Cerrar sesión";
     private static final String CAMBIAR_CLAVE = "Cambiar mi contraseña";
     private MonitorInactividad monitor;   // cierra la sesión si nadie usa el programa
@@ -139,6 +140,7 @@ public class PrincipalVista extends JFrame implements ActionListener {
         agregarOpcion(menu, EXISTENCIAS, Permisos.puede(r, Accion.CONSULTAR_EXISTENCIAS));
         agregarOpcion(menu, REPORTES, Permisos.puede(r, Accion.VER_REPORTES));
         agregarOpcion(menu, CONFIGURACION, Permisos.puede(r, Accion.CONFIGURAR_PARAMETROS));
+        agregarOpcion(menu, BITACORA, Permisos.puede(r, Accion.VER_BITACORA));
 
         menu.add(Box.createVerticalGlue());
         agregarOpcion(menu, CAMBIAR_CLAVE, true);
@@ -210,6 +212,7 @@ public class PrincipalVista extends JFrame implements ActionListener {
             case CATALOGOS -> new CatalogosPanel();
             case PROVEEDORES -> new ProveedoresPanel();
             case CONFIGURACION -> new ParametrosPanel();
+            case BITACORA -> new BitacoraPanel();
             case MOVIMIENTOS -> new MovimientosPanel();
             case CONTEO -> new ConteoPanel();
             case AUTORIZAR_ENTRADAS -> new AutorizacionesPanel(Naturaleza.ENTRADA);
