@@ -16,6 +16,7 @@ import com.aristools.modelo.Naturaleza;
 import com.aristools.modelo.Producto;
 import com.aristools.modelo.Salida;
 import com.aristools.modelo.Transferencia;
+import com.aristools.pruebas.BaseDePruebas;
 import com.aristools.util.NegocioException;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
@@ -26,12 +27,14 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 /**
- * Pruebas de los controladores contra la base aristools.
- * Todas son SEGURAS: o solo leen, o la operación es rechazada y la
- * transacción hace ROLLBACK, así que los datos no cambian.
+ * Pruebas de los controladores sobre la base H2 en memoria (BaseDePruebas).
+ * O solo leen, o la operación es rechazada y la transacción hace ROLLBACK,
+ * así que los datos de prueba no cambian entre una prueba y otra.
  */
+@ExtendWith(BaseDePruebas.class)
 class ControladoresTest {
 
     private static final String CLAVE = "Aristools2026*";

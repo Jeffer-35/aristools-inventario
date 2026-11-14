@@ -13,14 +13,18 @@ import com.aristools.modelo.Naturaleza;
 import com.aristools.modelo.Producto;
 import com.aristools.modelo.TipoMovimiento;
 import com.aristools.modelo.Usuario;
+import com.aristools.pruebas.BaseDePruebas;
 import java.sql.Connection;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 /**
- * Pruebas de integración de la capa DAO contra la base aristools (SCE2.10).
- * Son de solo lectura: no modifican los datos.
+ * Pruebas de integración de la capa DAO (SCE2.10).
+ * Usan la base H2 en memoria que prepara BaseDePruebas con los scripts
+ * aristools.sql y datos_iniciales.sql; no necesitan MySQL.
  */
+@ExtendWith(BaseDePruebas.class)
 class DaoLecturaTest {
 
     @Test

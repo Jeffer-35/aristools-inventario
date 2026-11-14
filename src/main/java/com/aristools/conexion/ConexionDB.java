@@ -20,12 +20,20 @@ import java.util.Properties;
  *   3. Dentro del proyecto, en src/main/resources (al trabajar en VS Code o NetBeans).
  * Así la contraseña de MySQL nunca queda empaquetada dentro del .jar.
  *
+ * Excepción para las pruebas: al ejecutar "mvn test" existe el archivo
+ * db-pruebas.properties (carpeta src/test/resources) y se usa ese, que
+ * apunta a una base H2 en memoria. Por eso las pruebas no necesitan MySQL
+ * ni contraseña. Ese archivo no va dentro del .jar: el programa instalado
+ * siempre usa MySQL.
+ *
  * Todas las clases DAO piden la conexión con ConexionDB.obtener() y la
  * cierran al terminar usando try-with-resources.
  */
 public final class ConexionDB {
 
     private static final String ARCHIVO = "/db.properties";
+    // Solo existe mientras corren las pruebas (src/test/resources)
+    private static final String ARCHIVO_PRUEBAS = "/db-pruebas.properties";
 
     private static String URL;
     private static String USUARIO;
@@ -64,8 +72,13 @@ public final class ConexionDB {
         CLAVE = propiedades.getProperty("clave", "");
     }
 
-    // Busca db.properties al lado del .jar, luego en la carpeta actual y por último en el proyecto.
+    // Si están corriendo las pruebas usa db-pruebas.properties (H2 en memoria).
+    // Si no, busca db.properties al lado del .jar, luego en la carpeta actual y por último en el proyecto.
     private static InputStream abrirArchivo() throws IOException {
+        InputStream pruebas = ConexionDB.class.getResourceAsStream(ARCHIVO_PRUEBAS);
+        if (pruebas != null) {
+            return pruebas;
+        }
         File carpetaPrograma = carpetaDelPrograma();
         if (carpetaPrograma != null) {
             File junto = new File(carpetaPrograma, "db.properties");
@@ -99,11 +112,16 @@ public final class ConexionDB {
         return valor.trim();
     }
 
+    /** Indica si la conexión es la base H2 en memoria de las pruebas (y no MySQL). */
+    public static boolean esBaseDePruebas() {
+        return URL.startsWith("jdbc:h2:");
+    }
+
     /**
      * Abre y devuelve una conexión nueva a la base de datos aristools.
      * Quien la recibe debe cerrarla (try-with-resources).
      *
-     * @return conexión abierta a MySQL
+     * @return conexión abierta a MySQL (o a H2 durante las pruebas)
      * @throws SQLException si MySQL no está encendido o los datos son incorrectos
      */
     public static Connection obtener() throws SQLException {

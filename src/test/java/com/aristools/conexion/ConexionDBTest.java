@@ -3,23 +3,27 @@ package com.aristools.conexion;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.aristools.pruebas.BaseDePruebas;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 /**
- * Prueba de conexión (SCE2.10): comprueba que Java llega a la base
- * aristools y que el script aristools.sql cargó los datos obligatorios.
- * Requiere MySQL encendido y db.properties con la contraseña correcta.
+ * Prueba de conexión (SCE2.10): comprueba que ConexionDB entrega una
+ * conexión válida a la base aristools y que el script aristools.sql cargó
+ * los datos obligatorios. Se ejecuta sobre la base H2 en memoria, por eso
+ * no requiere MySQL encendido ni contraseña.
  */
+@ExtendWith(BaseDePruebas.class)
 class ConexionDBTest {
 
     @Test
     void conectaConLaBaseAristools() throws Exception {
         try (Connection con = ConexionDB.obtener()) {
-            assertTrue(con.isValid(2), "La conexión con MySQL no es válida");
-            assertEquals("aristools", con.getCatalog(), "La conexión no apunta a la base aristools");
+            assertTrue(con.isValid(2), "La conexión con la base de datos no es válida");
+            assertEquals("aristools", con.getCatalog().toLowerCase(), "La conexión no apunta a la base aristools");
         }
     }
 

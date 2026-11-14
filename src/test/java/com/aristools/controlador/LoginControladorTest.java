@@ -6,15 +6,18 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.aristools.modelo.Usuario;
+import com.aristools.pruebas.BaseDePruebas;
 import com.aristools.seguridad.Sesion;
 import com.aristools.util.NegocioException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 /**
- * Pruebas del inicio de sesión contra la base aristools (RF-001).
- * Usan los usuarios de prueba; no bloquean cuentas activas.
+ * Pruebas del inicio de sesión (RF-001) sobre la base H2 en memoria.
+ * Usan los usuarios de datos_iniciales.sql; no bloquean cuentas activas.
  */
+@ExtendWith(BaseDePruebas.class)
 class LoginControladorTest {
 
     private final LoginControlador login = new LoginControlador();
