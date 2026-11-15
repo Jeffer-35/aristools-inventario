@@ -1,13 +1,16 @@
 package com.aristools.vista;
 
+import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
+import javax.swing.JComboBox;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
+import javax.swing.JTextField;
 import javax.swing.JPanel;
 
 /**
@@ -47,6 +50,14 @@ public class BarraFiltros extends JPanel {
         c.fill = GridBagConstraints.HORIZONTAL;
         c.insets = new Insets(4, 0, 4, 0);
         campo.setFont(Tema.NORMAL);
+        // Mínimo pequeño: si la ventana es angosta, el campo se encoge en vez de
+        // empujar los botones y la tabla fuera de la pantalla (los combos con
+        // nombres largos de productos o proveedores eran los que más ocupaban).
+        // Los grupos de botones (como Hoy / Este mes) conservan su tamaño.
+        if (campo instanceof JComboBox || campo instanceof JTextField || campo instanceof CampoFecha) {
+            Dimension preferido = campo.getPreferredSize();
+            campo.setMinimumSize(new Dimension(Math.min(preferido.width, 110), preferido.height));
+        }
         add(campo, c);
         pares++;
     }

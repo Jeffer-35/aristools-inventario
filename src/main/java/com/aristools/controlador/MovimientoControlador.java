@@ -1,5 +1,6 @@
 package com.aristools.controlador;
 
+import com.aristools.dao.MovimientoDAO;
 import com.aristools.dao.TipoMovimientoDAO;
 import com.aristools.modelo.Entrada;
 import com.aristools.modelo.Movimiento;
@@ -10,6 +11,7 @@ import com.aristools.modelo.Transferencia;
 import com.aristools.seguridad.Accion;
 import com.aristools.seguridad.Sesion;
 import com.aristools.util.NegocioException;
+import java.math.BigDecimal;
 import java.sql.SQLException;
 import java.util.List;
 
@@ -21,6 +23,7 @@ public class MovimientoControlador {
 
     private final TipoMovimientoDAO tipoDAO = new TipoMovimientoDAO();
     private final GestorInventario gestor = new GestorInventario();
+    private final MovimientoDAO movimientoDAO = new MovimientoDAO();
 
     /** Tipos para el combo de cada pestaña (sin los ajustes, que solo genera el conteo). */
     public List<TipoMovimiento> listarTipos(Naturaleza n) {
@@ -28,6 +31,19 @@ public class MovimientoControlador {
             List<TipoMovimiento> tipos = tipoDAO.listarPorNaturaleza(n);
             tipos.removeIf(t -> t.getNombre().startsWith("Ajuste"));
             return tipos;
+        } catch (SQLException e) {
+            throw NegocioException.deBaseDeDatos(e);
+        }
+    }
+
+    /**
+     * Costo de la última compra autorizada del producto, para proponerlo en
+     * la pantalla de Entrada. null si el producto nunca se ha comprado.
+     */
+    public BigDecimal ultimoCostoCompra(int idProducto) {
+        Sesion.exigir(Accion.REGISTRAR_MOVIMIENTOS);
+        try {
+            return movimientoDAO.ultimoCostoCompra(idProducto);
         } catch (SQLException e) {
             throw NegocioException.deBaseDeDatos(e);
         }

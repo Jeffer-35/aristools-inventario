@@ -1,6 +1,7 @@
 package com.aristools.controlador;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.aristools.dao.BodegaDAO;
@@ -34,7 +35,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 class KardexValorizadoTest {
 
     private static final String CLAVE = "Aristools2026*";
-    private static final String FACTURA = "FAC-PRUEBA-KARDEX";
+    private static final String FACTURA = "FAC-PRUEBA-0001";
     private final LoginControlador login = new LoginControlador();
 
     @AfterEach
@@ -54,6 +55,8 @@ class KardexValorizadoTest {
 
         // 1) El Almacenista registra la compra: 8 rollos a $ 200.000 (queda Pendiente)
         login.iniciarSesion("almacen", CLAVE);
+        assertNull(new MovimientoControlador().ultimoCostoCompra(cable.getIdProducto()),
+                "Sin compras anteriores no hay costo que sugerir");
         Entrada compra = new Entrada(cable, new TipoMovimientoDAO().buscarPorNombre("Compra"), null, 8,
                 principal, proveedor);
         compra.setDocumentoSoporte(FACTURA);
@@ -74,6 +77,8 @@ class KardexValorizadoTest {
 
         // 3) Una salida de 5 rollos se valora al promedio y no lo cambia
         login.iniciarSesion("almacen", CLAVE);
+        assertEquals(0, new BigDecimal("200000").compareTo(new MovimientoControlador().ultimoCostoCompra(cable.getIdProducto())),
+                "La pantalla de Entrada sugiere el costo de la última compra");
         Salida consumo = new Salida(cable, new TipoMovimientoDAO().buscarPorNombre("Consumo interno"), null, 5,
                 principal, null);
         consumo.setMotivo("Instalación eléctrica de la bodega");

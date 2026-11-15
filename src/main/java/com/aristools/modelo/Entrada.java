@@ -39,15 +39,39 @@ public class Entrada extends Movimiento {
         if (bodegaDestino == null || !bodegaDestino.estaActiva()) {
             throw new NegocioException("Seleccione una bodega de destino activa.");
         }
+        if (esCompra() && bodegaDestino.isCuarentena()) {
+            throw new NegocioException("La bodega de cuarentena no recibe compras: es solo para mercancía averiada.");
+        }
         if (esCompra() && (proveedor == null || !proveedor.estaActivo())) {
             throw new NegocioException("Una compra exige un proveedor activo.");
         }
         if (esCompra() && (documentoSoporte == null || documentoSoporte.isBlank())) {
             throw new NegocioException("Una compra exige el documento de soporte (factura o remisión).");
         }
+        if (esCompra() && !documentoSoporte.matches(".*\\d.*")) {
+            throw new NegocioException("El documento soporte debe llevar el número de la factura o remisión "
+                    + "(por ejemplo, FAC-004512), para poder ubicar el documento físico.");
+        }
         if (esCompra() && (costoUnitario == null || costoUnitario.compareTo(BigDecimal.ZERO) <= 0)) {
             throw new NegocioException("Una compra exige el costo unitario de la factura, mayor que cero.");
         }
+    }
+
+    /**
+     * Detecta un costo de factura sospechoso: menos de la mitad o más del doble
+     * del costo de referencia (el promedio del producto). Sirve para atrapar
+     * errores de digitación, como escribir 5.5 (cinco pesos) en vez de 5.500.
+     * No bloquea la compra: la pantalla pide confirmación, porque un precio
+     * sí puede cambiar mucho de verdad.
+     *
+     * @param referencia costo con el que se compara; null o cero si no hay
+     */
+    public static boolean costoInusual(BigDecimal costo, BigDecimal referencia) {
+        if (costo == null || referencia == null || referencia.signum() <= 0) {
+            return false;
+        }
+        BigDecimal dos = BigDecimal.valueOf(2);
+        return costo.multiply(dos).compareTo(referencia) < 0 || costo.compareTo(referencia.multiply(dos)) > 0;
     }
 
     /** @return true si la entrada es una compra a proveedor (y no una devolución) */
@@ -82,6 +106,16 @@ public class Entrada extends Movimiento {
         BigDecimal valorCompra = costoUnitario.multiply(BigDecimal.valueOf(cantidad));
         return valorAnterior.add(valorCompra)
                 .divide(BigDecimal.valueOf(stock + cantidad), 4, RoundingMode.HALF_UP);
+    }
+
+    @Override
+    public String prefijoDocumento() {
+        return "ENT";
+    }
+
+    @Override
+    public String tituloDocumento() {
+        return "Comprobante de entrada";
     }
 
     /** Una entrada suma la cantidad en la bodega de destino. */

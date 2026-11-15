@@ -1,6 +1,7 @@
 package com.aristools.vista;
 
 import com.aristools.modelo.Bodega;
+import com.aristools.modelo.CausaBaja;
 import com.aristools.modelo.Naturaleza;
 import com.aristools.modelo.Producto;
 import com.aristools.modelo.Proveedor;
@@ -18,6 +19,9 @@ import javax.swing.JTextField;
  * Registro de salidas (RF-007). El consumo interno se aplica de inmediato;
  * merma, producto dañado o vencido y devolución a proveedor quedan
  * Pendientes del Supervisor (RF-011). El stock nunca queda negativo.
+ *
+ * La merma y el producto dañado o vencido piden la causa estándar de la baja
+ * (lista fija) además del motivo, para que el reporte de pérdidas totalice por causa.
  */
 public class SalidaPanel extends PanelMovimiento {
 
@@ -27,6 +31,7 @@ public class SalidaPanel extends PanelMovimiento {
     private final JComboBox<Bodega> cmbBodega = new JComboBox<>();
     private final JTextField txtCantidad = new JTextField();
     private final JLabel lblExistencia = new JLabel(" ");
+    private final JComboBox<CausaBaja> cmbCausa = new JComboBox<>();
     private final JTextField txtMotivo = new JTextField();
     private final JTextField txtDocumento = new JTextField();
     private final JTextField txtObservacion = new JTextField();
@@ -38,10 +43,16 @@ public class SalidaPanel extends PanelMovimiento {
         agregarCampo("Bodega origen", cmbBodega);
         agregarCampo("Existencia", lblExistencia);
         agregarCampo("Cantidad", txtCantidad);
+        agregarCampo("Causa de la baja", cmbCausa);
         agregarCampo("Motivo", txtMotivo);
         agregarCampo("Documento soporte", txtDocumento);
         agregarCampo("Observación", txtObservacion);
         txtMotivo.putClientProperty("JTextField.placeholderText", "Obligatorio en merma y producto dañado o vencido");
+        for (CausaBaja causa : CausaBaja.values()) {
+            if (causa != CausaBaja.FALTANTE) {     // el faltante lo asigna el conteo físico
+                cmbCausa.addItem(causa);
+            }
+        }
 
         JButton btnRegistrar = Tema.botonPrincipal("Registrar salida");
         btnRegistrar.addActionListener(e -> ejecutar(this::registrar));
@@ -50,7 +61,9 @@ public class SalidaPanel extends PanelMovimiento {
         botones.add(btnRegistrar);
         agregarFilaCompleta(botones);
         agregarFilaCompleta(nota("El consumo interno descuenta el stock de inmediato. Merma, producto dañado o "
-                + "vencido y devolución a proveedor quedan Pendientes hasta que el Supervisor las autorice."));
+                + "vencido y devolución a proveedor quedan Pendientes hasta que el Supervisor las autorice. "
+                + "La mercancía averiada se pasa primero a la bodega de cuarentena con una transferencia y "
+                + "desde allí se registra la baja."));
 
         cmbTipo.addActionListener(e -> {
             boolean devolucion = cmbTipo.getSelectedItem() != null
@@ -59,6 +72,10 @@ public class SalidaPanel extends PanelMovimiento {
             if (!devolucion) {
                 cmbProveedor.setSelectedIndex(-1);
             }
+            // La causa solo aplica a las pérdidas (merma y producto dañado o vencido)
+            boolean perdida = cmbTipo.getSelectedItem() instanceof TipoMovimiento t && t.exigeMotivo();
+            cmbCausa.setEnabled(perdida);
+            cmbCausa.setSelectedIndex(-1);
         });
         cmbProducto.addActionListener(e -> mostrarExistencia(cmbProducto, cmbBodega, lblExistencia));
         cmbBodega.addActionListener(e -> mostrarExistencia(cmbProducto, cmbBodega, lblExistencia));
@@ -90,6 +107,7 @@ public class SalidaPanel extends PanelMovimiento {
         Proveedor proveedor = cmbProveedor.isEnabled() ? (Proveedor) cmbProveedor.getSelectedItem() : null;
         Salida s = new Salida((Producto) cmbProducto.getSelectedItem(), tipo, null,
                 leerCantidad(txtCantidad.getText()), (Bodega) cmbBodega.getSelectedItem(), proveedor);
+        s.setCausaBaja(cmbCausa.isEnabled() ? (CausaBaja) cmbCausa.getSelectedItem() : null);
         s.setMotivo(textoOpcional(txtMotivo.getText()));
         s.setDocumentoSoporte(textoOpcional(txtDocumento.getText()));
         s.setObservacion(textoOpcional(txtObservacion.getText()));
@@ -97,6 +115,7 @@ public class SalidaPanel extends PanelMovimiento {
         boolean inmediata = tipo != null && !tipo.isRequiereAutorizacion();
         txtCantidad.setText("");
         txtMotivo.setText("");
+        cmbCausa.setSelectedIndex(-1);
         txtDocumento.setText("");
         txtObservacion.setText("");
         mostrarExistencia(cmbProducto, cmbBodega, lblExistencia);   // se ve el nuevo saldo antes del aviso

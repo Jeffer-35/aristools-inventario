@@ -14,7 +14,7 @@ import java.util.List;
 /** Acceso a la tabla bodega (RF-004). */
 public class BodegaDAO {
 
-    private static final String SELECT = "SELECT id_bodega, codigo, nombre, ubicacion, estado FROM bodega ";
+    private static final String SELECT = "SELECT id_bodega, codigo, nombre, ubicacion, estado, es_cuarentena FROM bodega ";
 
     /** @param inactivas true para incluir las inactivas (los combos de movimientos usan false) */
     public List<Bodega> listar(boolean inactivas) throws SQLException {
@@ -43,12 +43,13 @@ public class BodegaDAO {
     public int insertar(Bodega b) throws SQLException {
         try (Connection con = ConexionDB.obtener();
              PreparedStatement ps = con.prepareStatement(
-                     "INSERT INTO bodega (codigo, nombre, ubicacion, estado) VALUES (?, ?, ?, ?)",
+                     "INSERT INTO bodega (codigo, nombre, ubicacion, estado, es_cuarentena) VALUES (?, ?, ?, ?, ?)",
                      Statement.RETURN_GENERATED_KEYS)) {
             ps.setString(1, b.getCodigo());
             ps.setString(2, b.getNombre());
             ps.setString(3, b.getUbicacion());
             ps.setString(4, b.getEstado().name());
+            ps.setBoolean(5, b.isCuarentena());
             ps.executeUpdate();
             try (ResultSet rs = ps.getGeneratedKeys()) {
                 rs.next();
@@ -60,12 +61,14 @@ public class BodegaDAO {
     public void actualizar(Bodega b) throws SQLException {
         try (Connection con = ConexionDB.obtener();
              PreparedStatement ps = con.prepareStatement(
-                     "UPDATE bodega SET codigo = ?, nombre = ?, ubicacion = ?, estado = ? WHERE id_bodega = ?")) {
+                     "UPDATE bodega SET codigo = ?, nombre = ?, ubicacion = ?, estado = ?, es_cuarentena = ? "
+                   + "WHERE id_bodega = ?")) {
             ps.setString(1, b.getCodigo());
             ps.setString(2, b.getNombre());
             ps.setString(3, b.getUbicacion());
             ps.setString(4, b.getEstado().name());
-            ps.setInt(5, b.getIdBodega());
+            ps.setBoolean(5, b.isCuarentena());
+            ps.setInt(6, b.getIdBodega());
             ps.executeUpdate();
         }
     }
@@ -89,7 +92,9 @@ public class BodegaDAO {
     }
 
     private Bodega mapear(ResultSet rs) throws SQLException {
-        return new Bodega(rs.getInt("id_bodega"), rs.getString("codigo"), rs.getString("nombre"),
+        Bodega b = new Bodega(rs.getInt("id_bodega"), rs.getString("codigo"), rs.getString("nombre"),
                 rs.getString("ubicacion"), EstadoRegistro.valueOf(rs.getString("estado")));
+        b.setCuarentena(rs.getBoolean("es_cuarentena"));
+        return b;
     }
 }

@@ -40,6 +40,16 @@ public class Transferencia extends Movimiento {
         }
     }
 
+    @Override
+    public String prefijoDocumento() {
+        return "TRF";
+    }
+
+    @Override
+    public String tituloDocumento() {
+        return "Comprobante de traslado";
+    }
+
     /** Resta en el origen y suma lo mismo en el destino: el total no cambia. */
     @Override
     public List<CambioStock> calcularCambiosStock() {

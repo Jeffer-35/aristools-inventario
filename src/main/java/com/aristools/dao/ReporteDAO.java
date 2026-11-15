@@ -147,6 +147,42 @@ public class ReporteDAO {
     }
 
     /**
+     * Pérdidas de mercancía de un período: mermas, productos dañados o
+     * vencidos y faltantes del conteo (ajustes negativos), solo AUTORIZADOS.
+     * La fecha que cuenta es la de autorización, que es cuando el stock bajó.
+     * Cada movimiento trae su costo unitario, así se sabe cuánto dinero se perdió.
+     *
+     * @param idBodega null para todas las bodegas
+     */
+    public List<Movimiento> perdidas(LocalDate desde, LocalDate hasta, Integer idBodega) throws SQLException {
+        String sql = MovimientoDAO.SELECT_BASE
+                   + "WHERE m.estado = 'AUTORIZADO' "
+                   + "AND t.nombre IN ('Merma', 'Producto dañado o vencido', 'Ajuste negativo') "
+                   + "AND (? IS NULL OR m.id_bodega_origen = ?) "
+                   + "AND (? IS NULL OR COALESCE(m.fecha_autorizacion, m.fecha) >= ?) "
+                   + "AND (? IS NULL OR COALESCE(m.fecha_autorizacion, m.fecha) < ?) "
+                   + "ORDER BY COALESCE(m.fecha_autorizacion, m.fecha), m.id_movimiento";
+        Timestamp inicio = desde == null ? null : Timestamp.valueOf(desde.atStartOfDay());
+        Timestamp fin = hasta == null ? null : Timestamp.valueOf(hasta.plusDays(1).atStartOfDay());
+        List<Movimiento> lista = new ArrayList<>();
+        try (Connection con = ConexionDB.obtener();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setObject(1, idBodega, Types.INTEGER);
+            ps.setObject(2, idBodega, Types.INTEGER);
+            ps.setTimestamp(3, inicio);
+            ps.setTimestamp(4, inicio);
+            ps.setTimestamp(5, fin);
+            ps.setTimestamp(6, fin);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    lista.add(MovimientoDAO.mapear(rs));
+                }
+            }
+        }
+        return lista;
+    }
+
+    /**
      * Unidades que entran y salen según la bodega consultada.
      * Sin filtro de bodega, una transferencia cuenta como entrada y salida
      * iguales, porque no cambia el stock total.

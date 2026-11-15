@@ -3,6 +3,7 @@ package com.aristools.dao;
 import com.aristools.conexion.ConexionDB;
 import com.aristools.modelo.Ajuste;
 import com.aristools.modelo.Bodega;
+import com.aristools.modelo.CausaBaja;
 import com.aristools.modelo.Entrada;
 import com.aristools.modelo.EstadoMovimiento;
 import com.aristools.modelo.EstadoRegistro;
@@ -38,14 +39,17 @@ public class MovimientoDAO {
     /** Consulta base con todos los datos relacionados; también la usa ReporteDAO. */
     static final String SELECT_BASE =
             "SELECT m.id_movimiento, m.cantidad, m.costo_unitario, m.estado, m.fecha, m.fecha_autorizacion, m.motivo, "
-          + "m.motivo_rechazo, m.documento_soporte, m.observacion, "
-          + "p.id_producto, p.codigo AS p_codigo, p.nombre AS p_nombre, p.estado AS p_estado, "
+          + "m.motivo_rechazo, m.documento_soporte, m.observacion, m.causa_baja, "
+          + "p.id_producto, p.codigo AS p_codigo, p.nombre AS p_nombre, p.estado AS p_estado, p.unidad_medida, "
           + "p.stock_minimo, p.stock_maximo, "
           + "t.id_tipo_movimiento, t.nombre AS t_nombre, t.naturaleza, t.requiere_autorizacion, "
           + "ra.id_rol AS ra_id, ra.nombre_rol AS ra_nombre, "
-          + "ur.id_usuario AS ur_id, ur.nombre_usuario AS ur_nombre, "
-          + "ua.id_usuario AS ua_id, ua.nombre_usuario AS ua_nombre, "
+          + "ur.id_usuario AS ur_id, ur.nombre_usuario AS ur_nombre, ur.nombre_completo AS ur_completo, "
+          + "rr.id_rol AS rr_id, rr.nombre_rol AS rr_nombre, "
+          + "ua.id_usuario AS ua_id, ua.nombre_usuario AS ua_nombre, ua.nombre_completo AS ua_completo, "
+          + "rz.id_rol AS rz_id, rz.nombre_rol AS rz_nombre, "
           + "bo.id_bodega AS bo_id, bo.codigo AS bo_codigo, bo.nombre AS bo_nombre, bo.estado AS bo_estado, "
+          + "bo.es_cuarentena AS bo_cuarentena, bd.es_cuarentena AS bd_cuarentena, "
           + "bd.id_bodega AS bd_id, bd.codigo AS bd_codigo, bd.nombre AS bd_nombre, bd.estado AS bd_estado, "
           + "pv.id_proveedor AS pv_id, pv.nit AS pv_nit, pv.razon_social AS pv_razon, pv.estado AS pv_estado "
           + "FROM movimiento_inventario m "
@@ -53,7 +57,9 @@ public class MovimientoDAO {
           + "JOIN tipo_movimiento t ON t.id_tipo_movimiento = m.id_tipo_movimiento "
           + "LEFT JOIN rol ra ON ra.id_rol = t.id_rol_autorizador "
           + "JOIN usuario ur ON ur.id_usuario = m.id_usuario "
+          + "JOIN rol rr ON rr.id_rol = ur.id_rol "
           + "LEFT JOIN usuario ua ON ua.id_usuario = m.id_usuario_autoriza "
+          + "LEFT JOIN rol rz ON rz.id_rol = ua.id_rol "
           + "LEFT JOIN bodega bo ON bo.id_bodega = m.id_bodega_origen "
           + "LEFT JOIN bodega bd ON bd.id_bodega = m.id_bodega_destino "
           + "LEFT JOIN proveedor pv ON pv.id_proveedor = m.id_proveedor ";
@@ -81,8 +87,8 @@ public class MovimientoDAO {
         }
         String sql = "INSERT INTO movimiento_inventario (id_producto, id_tipo_movimiento, id_bodega_origen, "
                    + "id_bodega_destino, id_proveedor, id_usuario, estado, id_usuario_autoriza, fecha_autorizacion, "
-                   + "documento_soporte, motivo, cantidad, fecha, observacion, costo_unitario) "
-                   + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                   + "documento_soporte, motivo, cantidad, fecha, observacion, costo_unitario, causa_baja) "
+                   + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         try (PreparedStatement ps = con.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             ps.setInt(1, m.getProducto().getIdProducto());
             ps.setInt(2, m.getTipo().getIdTipoMovimiento());
@@ -99,12 +105,45 @@ public class MovimientoDAO {
             ps.setTimestamp(13, Timestamp.valueOf(m.getFecha()));
             ps.setString(14, m.getObservacion());
             ps.setBigDecimal(15, m.getCostoUnitario());   // compra: costo de la factura; los demás se llenan al aplicar
+            ps.setString(16, m.getCausaBaja() == null ? null : m.getCausaBaja().name());
             ps.executeUpdate();
             try (ResultSet rs = ps.getGeneratedKeys()) {
                 rs.next();
                 int id = rs.getInt(1);
                 m.setIdMovimiento(id);
                 return id;
+            }
+        }
+    }
+
+    /**
+     * Costo unitario de la última compra autorizada del producto. La pantalla
+     * de Entrada lo propone como costo de la nueva compra.
+     *
+     * @return el costo, o null si el producto nunca se ha comprado
+     */
+    public BigDecimal ultimoCostoCompra(int idProducto) throws SQLException {
+        String sql = "SELECT m.costo_unitario FROM movimiento_inventario m "
+                   + "JOIN tipo_movimiento t ON t.id_tipo_movimiento = m.id_tipo_movimiento "
+                   + "WHERE m.id_producto = ? AND t.nombre = 'Compra' AND m.estado = 'AUTORIZADO' "
+                   + "AND m.costo_unitario IS NOT NULL "
+                   + "ORDER BY COALESCE(m.fecha_autorizacion, m.fecha) DESC, m.id_movimiento DESC LIMIT 1";
+        try (Connection con = ConexionDB.obtener();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setInt(1, idProducto);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getBigDecimal(1) : null;
+            }
+        }
+    }
+
+    /** Lee un movimiento con todos sus datos, por ejemplo para imprimir su documento de soporte. */
+    public Movimiento buscarPorId(int id) throws SQLException {
+        try (Connection con = ConexionDB.obtener();
+             PreparedStatement ps = con.prepareStatement(SELECT_BASE + "WHERE m.id_movimiento = ?")) {
+            ps.setInt(1, id);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? mapear(rs) : null;
             }
         }
     }
@@ -217,6 +256,7 @@ public class MovimientoDAO {
         p.setCodigo(rs.getString("p_codigo"));
         p.setNombre(rs.getString("p_nombre"));
         p.setEstado(EstadoRegistro.valueOf(rs.getString("p_estado")));
+        p.setUnidadMedida(rs.getString("unidad_medida"));
         p.setStockMinimo(rs.getObject("stock_minimo", Integer.class));
         p.setStockMaximo(rs.getObject("stock_maximo", Integer.class));
 
@@ -228,12 +268,16 @@ public class MovimientoDAO {
         Usuario registra = new Usuario();
         registra.setIdUsuario(rs.getInt("ur_id"));
         registra.setNombreUsuario(rs.getString("ur_nombre"));
+        registra.setNombreCompleto(rs.getString("ur_completo"));
+        registra.setRol(new Rol(rs.getInt("rr_id"), rs.getString("rr_nombre"), null));
         Usuario autoriza = null;
         int idAut = rs.getInt("ua_id");
         if (!rs.wasNull()) {
             autoriza = new Usuario();
             autoriza.setIdUsuario(idAut);
             autoriza.setNombreUsuario(rs.getString("ua_nombre"));
+            autoriza.setNombreCompleto(rs.getString("ua_completo"));
+            autoriza.setRol(new Rol(rs.getInt("rz_id"), rs.getString("rz_nombre"), null));
         }
 
         m.setIdMovimiento(rs.getInt("id_movimiento"));
@@ -250,6 +294,8 @@ public class MovimientoDAO {
         m.setMotivoRechazo(rs.getString("motivo_rechazo"));
         m.setDocumentoSoporte(rs.getString("documento_soporte"));
         m.setObservacion(rs.getString("observacion"));
+        String causa = rs.getString("causa_baja");
+        m.setCausaBaja(causa == null ? null : CausaBaja.valueOf(causa));
         return m;
     }
 
@@ -259,8 +305,10 @@ public class MovimientoDAO {
         if (rs.wasNull()) {
             return null;
         }
-        return new Bodega(id, rs.getString(prefijo + "_codigo"), rs.getString(prefijo + "_nombre"), null,
+        Bodega b = new Bodega(id, rs.getString(prefijo + "_codigo"), rs.getString(prefijo + "_nombre"), null,
                 EstadoRegistro.valueOf(rs.getString(prefijo + "_estado")));
+        b.setCuarentena(rs.getBoolean(prefijo + "_cuarentena"));
+        return b;
     }
 
     private static LocalDateTime aFecha(Timestamp t) {

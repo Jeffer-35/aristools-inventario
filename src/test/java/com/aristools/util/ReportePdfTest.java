@@ -51,6 +51,25 @@ class ReportePdfTest {
     }
 
     @Test
+    void elDocumentoDeSoporteLlevaNumeroDatosYResponsables() throws Exception {
+        ByteArrayOutputStream memoria = new ByteArrayOutputStream();
+        List<String[]> campos = new ArrayList<>();
+        campos.add(new String[]{"Producto", "PIN-001 - Pintura vinilo blanco 1 gal"});
+        campos.add(new String[]{"Cantidad", "2 galón(s)"});
+        campos.add(new String[]{"Causa de la baja", "Humedad"});
+        campos.add(new String[]{"Valor de la pérdida", "$ 96.000"});
+        ReportePdf.generarDocumento(memoria, "Ferretería Aristools", "Acta de baja", "BAJ-000057", campos,
+                "Carlos Pérez (Almacenista) · 14/11/2026 10:00", "Marta Gómez (Supervisor de Bodega) · 14/11/2026 11:30");
+        PdfReader lector = new PdfReader(memoria.toByteArray());
+        String texto = new PdfTextExtractor(lector).getTextFromPage(1);
+        lector.close();
+        for (String esperado : new String[]{"Ferretería Aristools", "Acta de baja", "BAJ-000057", "Humedad",
+            "$ 96.000", "Elaboró", "Carlos Pérez", "Revisó", "Marta Gómez"}) {
+            assertTrue(texto.contains(esperado), "El documento debe contener: " + esperado);
+        }
+    }
+
+    @Test
     void unReporteLargoOcupaVariasPaginas() throws Exception {
         List<String[]> filas = new ArrayList<>();
         for (int i = 1; i <= 150; i++) {

@@ -2,6 +2,7 @@ package com.aristools.modelo;
 
 import com.aristools.util.NegocioException;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -34,6 +35,7 @@ public abstract class Movimiento {
     protected String documentoSoporte;
     protected String observacion;
     protected BigDecimal costoUnitario;   // costo con el que se valora (kardex valorizado)
+    protected CausaBaja causaBaja;        // causa estándar de la pérdida (mermas, daños y faltantes)
 
     /** Todo movimiento nace Pendiente y con la fecha actual. */
     protected Movimiento() {
@@ -63,6 +65,39 @@ public abstract class Movimiento {
      * Ejemplo: una transferencia de 8 unidades devuelve -8 en el origen y +8 en el destino.
      */
     public abstract List<CambioStock> calcularCambiosStock();
+
+    // ----- Documento de soporte y pérdidas -----
+
+    /** Prefijo del documento de soporte: cada subclase tiene el suyo (ENT, VAL, BAJ, TRF, CNT). */
+    public abstract String prefijoDocumento();
+
+    /** Título del documento de soporte impreso, por ejemplo "Acta de baja". */
+    public abstract String tituloDocumento();
+
+    /**
+     * Número del documento de soporte: el prefijo del tipo y el número del
+     * movimiento con seis cifras, por ejemplo BAJ-000057. Como sale del
+     * número del movimiento, no se repite y siempre lleva al registro.
+     */
+    public String numeroDocumento() {
+        return prefijoDocumento() + "-" + String.format("%06d", idMovimiento);
+    }
+
+    /**
+     * @return true si el movimiento es una pérdida de mercancía (merma, daño,
+     * vencimiento o faltante). Por defecto no lo es; Salida y Ajuste lo redefinen.
+     */
+    public boolean esPerdida() {
+        return false;
+    }
+
+    /** Valor en pesos del movimiento: cantidad x costo unitario (cero si aún no se ha valorado). */
+    public BigDecimal valorTotal() {
+        if (costoUnitario == null) {
+            return BigDecimal.ZERO.setScale(2);
+        }
+        return costoUnitario.multiply(BigDecimal.valueOf(cantidad)).setScale(2, RoundingMode.HALF_UP);
+    }
 
     // ----- Kardex valorizado (costo promedio ponderado) -----
 
@@ -211,4 +246,7 @@ public abstract class Movimiento {
 
     public BigDecimal getCostoUnitario() { return costoUnitario; }
     public void setCostoUnitario(BigDecimal costoUnitario) { this.costoUnitario = costoUnitario; }
+
+    public CausaBaja getCausaBaja() { return causaBaja; }
+    public void setCausaBaja(CausaBaja causaBaja) { this.causaBaja = causaBaja; }
 }

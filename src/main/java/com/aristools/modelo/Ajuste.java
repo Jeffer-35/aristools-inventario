@@ -36,6 +36,22 @@ public class Ajuste extends Movimiento {
         }
     }
 
+    /** El ajuste negativo es un faltante: cuenta como pérdida de mercancía. */
+    @Override
+    public boolean esPerdida() {
+        return !positivo;
+    }
+
+    @Override
+    public String prefijoDocumento() {
+        return "CNT";
+    }
+
+    @Override
+    public String tituloDocumento() {
+        return "Acta de ajuste por conteo físico";
+    }
+
     /** Suma o resta la diferencia del conteo en la bodega contada. */
     @Override
     public List<CambioStock> calcularCambiosStock() {

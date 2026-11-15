@@ -83,7 +83,77 @@ class ModeloTest {
         Salida s = new Salida(martillo, tipo("Merma", Naturaleza.SALIDA, true, supervisor), registra, 2, principal, null);
         assertThrows(NegocioException.class, s::validar);
         s.setMotivo("Envases golpeados");
-        s.validar();   // con motivo ya es válida
+        NegocioException e = assertThrows(NegocioException.class, s::validar);
+        assertEquals("Seleccione la causa de la baja (vencido, roto, humedad, etc.).", e.getMessage());
+        s.setCausaBaja(CausaBaja.ROTO_O_GOLPEADO);
+        s.validar();   // con motivo y causa ya es válida
+    }
+
+    // ----- averías, cuarentena y documentos de soporte -----
+
+    @Test
+    void laBodegaDeCuarentenaNoRecibeComprasNiEntregaConsumoInterno() {
+        Bodega cuarentena = new Bodega(9, "BOD-CUA", "Cuarentena", "", EstadoRegistro.ACTIVO);
+        cuarentena.setCuarentena(true);
+        Proveedor proveedor = new Proveedor(1, "900123456-1", "Distribuidora Ferretera del Valle S.A.S.",
+                "", "", "", "", EstadoRegistro.ACTIVO);
+        Entrada compra = new Entrada(martillo, tipo("Compra", Naturaleza.ENTRADA, true, null), registra, 10, cuarentena, proveedor);
+        compra.setDocumentoSoporte("FAC-1");
+        compra.setCostoUnitario(new BigDecimal("24000"));
+        assertThrows(NegocioException.class, compra::validar, "No se compra directo a cuarentena");
+
+        Salida consumo = new Salida(martillo, tipo("Consumo interno", Naturaleza.SALIDA, false, null), registra, 1, cuarentena, null);
+        assertThrows(NegocioException.class, consumo::validar, "Lo averiado no se usa");
+
+        // Sí se puede trasladar a cuarentena y darlo de baja desde allí
+        new Transferencia(martillo, tipo("Transferencia", Naturaleza.TRANSFERENCIA, false, null), registra, 2, principal, cuarentena).validar();
+        Salida baja = new Salida(martillo, tipo("Producto dañado o vencido", Naturaleza.SALIDA, true, supervisor), registra, 2, cuarentena, null);
+        baja.setMotivo("Mango partido");
+        baja.setCausaBaja(CausaBaja.ROTO_O_GOLPEADO);
+        baja.validar();
+    }
+
+    @Test
+    void cadaMovimientoTieneSuDocumentoDeSoporte() {
+        Movimiento entrada = new Entrada(martillo, tipo("Compra", Naturaleza.ENTRADA, true, null), registra, 5, principal, null);
+        Movimiento vale = new Salida(martillo, tipo("Consumo interno", Naturaleza.SALIDA, false, null), registra, 3, principal, null);
+        Movimiento baja = new Salida(martillo, tipo("Merma", Naturaleza.SALIDA, true, supervisor), registra, 2, principal, null);
+        Movimiento traslado = new Transferencia(martillo, tipo("Transferencia", Naturaleza.TRANSFERENCIA, false, null),
+                registra, 8, principal, exhibicion);
+        Movimiento faltante = new Ajuste(martillo, tipo("Ajuste negativo", Naturaleza.SALIDA, true, supervisor), registra, 1, principal, false);
+        baja.setIdMovimiento(57);
+        assertEquals("BAJ-000057", baja.numeroDocumento());
+        assertEquals("Acta de baja", baja.tituloDocumento());
+        assertEquals(List.of("ENT", "VAL", "BAJ", "TRF", "CNT"), List.of(entrada.prefijoDocumento(),
+                vale.prefijoDocumento(), baja.prefijoDocumento(), traslado.prefijoDocumento(), faltante.prefijoDocumento()));
+        // Son pérdidas la merma y el faltante del conteo; las demás no
+        assertTrue(baja.esPerdida());
+        assertTrue(faltante.esPerdida());
+        assertFalse(entrada.esPerdida() || vale.esPerdida() || traslado.esPerdida());
+    }
+
+    @Test
+    void lasPerdidasSeTotalizanPorCausaDeMayorAMenorValor() {
+        TipoMovimiento danado = tipo("Producto dañado o vencido", Naturaleza.SALIDA, true, supervisor);
+        Movimiento a = perdida(danado, 2, "20000", CausaBaja.HUMEDAD);     //  40.000
+        Movimiento b = perdida(danado, 5, "30000", CausaBaja.VENCIDO);     // 150.000
+        Movimiento c = perdida(danado, 1, "10000", CausaBaja.HUMEDAD);     //  10.000
+        assertEquals(0, new BigDecimal("40000").compareTo(a.valorTotal()));
+        List<TotalPerdida> totales = TotalPerdida.agrupar(List.of(a, b, c), m -> m.getCausaBaja().getDescripcion());
+        assertEquals(2, totales.size());
+        assertEquals("Vencido", totales.get(0).getNombre());
+        assertEquals(0, new BigDecimal("150000").compareTo(totales.get(0).getValor()));
+        assertEquals("Humedad", totales.get(1).getNombre());
+        assertEquals(2, totales.get(1).getBajas());
+        assertEquals(3, totales.get(1).getUnidades());
+        assertEquals(0, new BigDecimal("50000").compareTo(totales.get(1).getValor()));
+    }
+
+    private Movimiento perdida(TipoMovimiento tipo, int cantidad, String costo, CausaBaja causa) {
+        Salida s = new Salida(martillo, tipo, registra, cantidad, principal, null);
+        s.setCostoUnitario(new BigDecimal(costo));
+        s.setCausaBaja(causa);
+        return s;
     }
 
     @Test
@@ -114,6 +184,30 @@ class ModeloTest {
         assertEquals("Una compra exige el costo unitario de la factura, mayor que cero.", ex.getMessage());
         e.setCostoUnitario(BigDecimal.ZERO);
         assertThrows(NegocioException.class, e::validar, "El costo cero tampoco es válido");
+    }
+
+    @Test
+    void elDocumentoDeLaCompraDebeLlevarElNumeroDeLaFactura() {
+        Proveedor proveedor = new Proveedor(1, "900123456-1", "Distribuidora Ferretera del Valle S.A.S.",
+                "", "", "", "", EstadoRegistro.ACTIVO);
+        Entrada e = new Entrada(martillo, tipo("Compra", Naturaleza.ENTRADA, true, null), registra, 10, principal, proveedor);
+        e.setCostoUnitario(new BigDecimal("24000"));
+        e.setDocumentoSoporte("Factura");
+        NegocioException ex = assertThrows(NegocioException.class, e::validar, "Solo la palabra no identifica la factura");
+        assertTrue(ex.getMessage().startsWith("El documento soporte debe llevar el número"));
+        e.setDocumentoSoporte("FAC-004512");
+        e.validar();
+    }
+
+    @Test
+    void unCostoMuyDistintoDelPromedioSeConsideraInusual() {
+        BigDecimal promedio = new BigDecimal("48000");
+        assertTrue(Entrada.costoInusual(new BigDecimal("5.5"), promedio), "5.5 pesos en vez de 5.500");
+        assertTrue(Entrada.costoInusual(new BigDecimal("23000"), promedio), "menos de la mitad");
+        assertTrue(Entrada.costoInusual(new BigDecimal("97000"), promedio), "más del doble");
+        assertFalse(Entrada.costoInusual(new BigDecimal("55000"), promedio), "un alza normal de precio");
+        assertFalse(Entrada.costoInusual(new BigDecimal("24000"), promedio), "justo la mitad todavía es aceptable");
+        assertFalse(Entrada.costoInusual(new BigDecimal("5.5"), BigDecimal.ZERO), "sin promedio no hay con qué comparar");
     }
 
     // ----- kardex valorizado (costo promedio ponderado) -----

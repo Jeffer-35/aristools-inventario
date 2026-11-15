@@ -21,9 +21,12 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 /**
- * Genera un reporte en PDF con la librería OpenPDF: encabezado con el nombre
- * del establecimiento, título, filtros usados, tabla de datos, resumen y los
- * responsables ("Elaboró" y "Revisó"). Cada página lleva su número.
+ * Genera los PDF del sistema con la librería OpenPDF. Hay dos formatos:
+ *   - Reporte (generar): encabezado con el nombre del establecimiento, título,
+ *     filtros usados, tabla de datos, resumen y responsables.
+ *   - Documento de soporte de un movimiento (generarDocumento): título, número
+ *     del documento, sus datos en dos columnas y responsables.
+ * En ambos van "Elaboró" y "Revisó", y cada página lleva su número.
  *
  * Esta clase solo arma el documento: no sabe de ventanas ni de la base de
  * datos. Recibe los textos ya listos y escribe el PDF donde le indiquen
@@ -86,6 +89,72 @@ public final class ReportePdf {
             p.setSpacingBefore(8);
             documento.add(p);
         }
+        documento.add(responsables(elaboro, reviso));
+        documento.close();
+    }
+
+    /**
+     * Escribe el documento de soporte de un movimiento (comprobante de
+     * entrada, vale de salida, acta de baja, comprobante de traslado o acta
+     * de ajuste por conteo).
+     *
+     * @param titulo  nombre del documento, por ejemplo "Acta de baja"
+     * @param numero  número del documento, por ejemplo BAJ-000057
+     * @param campos  datos del movimiento: cada elemento es {etiqueta, valor}
+     * @param elaboro quien registró el movimiento
+     * @param reviso  quien lo autorizó
+     */
+    public static void generarDocumento(OutputStream salida, String establecimiento, String titulo, String numero,
+                                        List<String[]> campos, String elaboro, String reviso)
+            throws DocumentException {
+        Document documento = new Document(PageSize.LETTER, 54, 54, 48, 48);
+        PdfWriter.getInstance(documento, salida);
+        HeaderFooter pie = new HeaderFooter(new Phrase(limpiar(establecimiento) + "  ·  " + limpiar(numero)
+                + "  ·  Página ", fuente(8, Font.NORMAL, GRIS_TEXTO)), true);
+        pie.setAlignment(Element.ALIGN_CENTER);
+        pie.setBorder(Rectangle.TOP);
+        pie.setBorderColor(BORDE);
+        documento.setFooter(pie);
+
+        documento.open();
+        documento.add(new Paragraph(limpiar(establecimiento), fuente(15, Font.BOLD, Color.BLACK)));
+
+        // Franja azul con el título a la izquierda y el número a la derecha
+        PdfPTable franja = new PdfPTable(2);
+        franja.setWidthPercentage(100);
+        franja.setSpacingBefore(8);
+        PdfPCell celdaTitulo = new PdfPCell(new Phrase(limpiar(titulo), fuente(13, Font.BOLD, Color.WHITE)));
+        PdfPCell celdaNumero = new PdfPCell(new Phrase("N.º " + limpiar(numero), fuente(13, Font.BOLD, Color.WHITE)));
+        celdaNumero.setHorizontalAlignment(Element.ALIGN_RIGHT);
+        for (PdfPCell celda : new PdfPCell[]{celdaTitulo, celdaNumero}) {
+            celda.setBackgroundColor(AZUL);
+            celda.setBorderColor(AZUL);
+            celda.setPadding(8);
+            franja.addCell(celda);
+        }
+        documento.add(franja);
+
+        // Datos del movimiento: etiqueta en negrita y valor
+        PdfPTable datos = new PdfPTable(new float[]{28, 72});
+        datos.setWidthPercentage(100);
+        datos.setSpacingBefore(10);
+        for (String[] campo : campos) {
+            PdfPCell etiqueta = new PdfPCell(new Phrase(limpiar(campo[0]), fuente(10, Font.BOLD, Color.BLACK)));
+            PdfPCell valor = new PdfPCell(new Phrase(limpiar(campo[1]), fuente(10, Font.NORMAL, Color.BLACK)));
+            etiqueta.setBackgroundColor(GRIS_FILA);
+            for (PdfPCell celda : new PdfPCell[]{etiqueta, valor}) {
+                celda.setBorderColor(BORDE);
+                celda.setPadding(6);
+                datos.addCell(celda);
+            }
+        }
+        documento.add(datos);
+
+        Paragraph nota = new Paragraph("Documento interno  ·  Impreso el " + LocalDateTime.now().format(FECHA_HORA)
+                + "  ·  Responsables registrados con su usuario en el sistema.",
+                fuente(8, Font.NORMAL, GRIS_TEXTO));
+        nota.setSpacingBefore(10);
+        documento.add(nota);
         documento.add(responsables(elaboro, reviso));
         documento.close();
     }

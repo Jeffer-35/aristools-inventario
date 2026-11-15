@@ -7,6 +7,9 @@ import java.util.List;
  * Salida de mercancía (RF-007): consumo interno, merma, producto dañado o
  * vencido y devolución a proveedor. El consumo interno se aplica de
  * inmediato; las demás esperan al Supervisor de Bodega (RF-011).
+ *
+ * La merma y el producto dañado o vencido son pérdidas: exigen la causa
+ * estándar y el motivo, y su documento de soporte es un acta de baja.
  */
 public class Salida extends Movimiento {
 
@@ -36,10 +39,34 @@ public class Salida extends Movimiento {
         if (tipo.exigeMotivo() && (motivo == null || motivo.isBlank())) {
             throw new NegocioException("El motivo es obligatorio en merma, producto dañado o vencido.");
         }
+        if (tipo.exigeMotivo() && causaBaja == null) {
+            throw new NegocioException("Seleccione la causa de la baja (vencido, roto, humedad, etc.).");
+        }
+        if (bodegaOrigen.isCuarentena() && "Consumo interno".equalsIgnoreCase(tipo.getNombre())) {
+            throw new NegocioException("La mercancía en cuarentena no se puede usar: solo sale por baja, "
+                    + "devolución a proveedor o transferencia.");
+        }
         if ("Devolución a proveedor".equalsIgnoreCase(tipo.getNombre())
                 && (proveedor == null || !proveedor.estaActivo())) {
             throw new NegocioException("La devolución a proveedor exige un proveedor activo.");
         }
+    }
+
+    /** La merma y el producto dañado o vencido son pérdidas de mercancía. */
+    @Override
+    public boolean esPerdida() {
+        return tipo != null && tipo.exigeMotivo();
+    }
+
+    /** Las pérdidas llevan acta de baja (BAJ); las demás salidas, vale de salida (VAL). */
+    @Override
+    public String prefijoDocumento() {
+        return esPerdida() ? "BAJ" : "VAL";
+    }
+
+    @Override
+    public String tituloDocumento() {
+        return esPerdida() ? "Acta de baja" : "Vale de salida";
     }
 
     /** Una salida resta la cantidad en la bodega de origen. */

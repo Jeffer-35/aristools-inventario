@@ -50,6 +50,12 @@
             <artifactId>openpdf</artifactId>
             <version>1.3.43</version>
         </dependency>
+        <!-- LGoodDatePicker: campo de fecha con calendario en los filtros de reportes y bitácora -->
+        <dependency>
+            <groupId>com.github.lgooddatepicker</groupId>
+            <artifactId>LGoodDatePicker</artifactId>
+            <version>11.2.1</version>
+        </dependency>
         <!--
           H2: base de datos en memoria, SOLO para las pruebas (scope test).
           Así "mvn test" funciona en cualquier computador sin MySQL ni
@@ -91,7 +97,7 @@
             </plugin>
             <!--
               .jar ejecutable (se abre con doble clic): incluye las librerías
-              (MySQL, BCrypt, FlatLaf, OpenPDF) y deja por fuera db.properties, para que
+              (MySQL, BCrypt, FlatLaf, OpenPDF, LGoodDatePicker) y deja por fuera db.properties, para que
               la contraseña de MySQL nunca quede dentro del ejecutable.
               Se genera con: mvn clean package
             -->

@@ -90,6 +90,7 @@ CREATE TABLE bodega (
     nombre      VARCHAR(60)  NOT NULL,
     ubicacion   VARCHAR(150) NULL,
     estado      VARCHAR(10)  NOT NULL DEFAULT 'ACTIVO',
+    es_cuarentena BOOLEAN    NOT NULL DEFAULT FALSE,  -- TRUE: guarda mercancía averiada mientras se decide la baja
     CONSTRAINT pk_bodega PRIMARY KEY (id_bodega),
     CONSTRAINT uq_bodega_codigo UNIQUE (codigo),
     CONSTRAINT uq_bodega_nombre UNIQUE (nombre),   -- RF-004: código y nombre únicos
@@ -151,6 +152,7 @@ CREATE TABLE movimiento_inventario (
     motivo_rechazo       VARCHAR(255) NULL,
     documento_soporte    VARCHAR(50)  NULL,
     motivo               VARCHAR(255) NULL,
+    causa_baja           VARCHAR(20)  NULL,  -- causa estándar de la pérdida (mermas, daños y faltantes)
     cantidad             INT          NOT NULL,
     costo_unitario       DECIMAL(14,4) NULL,  -- compra: costo de la factura; los demás: costo promedio al aplicarse
     fecha                DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -166,6 +168,8 @@ CREATE TABLE movimiento_inventario (
     CONSTRAINT ck_movimiento_estado CHECK (estado IN ('PENDIENTE', 'AUTORIZADO', 'RECHAZADO')),
     CONSTRAINT ck_movimiento_cantidad CHECK (cantidad > 0),
     CONSTRAINT ck_movimiento_costo CHECK (costo_unitario IS NULL OR costo_unitario >= 0),
+    CONSTRAINT ck_movimiento_causa CHECK (causa_baja IS NULL OR causa_baja IN
+        ('VENCIDO', 'ROTO_O_GOLPEADO', 'DANO_TRANSPORTE', 'HUMEDAD', 'DEFECTO_FABRICA', 'FALTANTE', 'OTRO')),
     -- Segregación de funciones: quien registra no puede autorizar (RF-010, RF-011)
     CONSTRAINT ck_movimiento_segregacion CHECK (id_usuario_autoriza IS NULL OR id_usuario_autoriza <> id_usuario),
     -- Todo movimiento afecta al menos una bodega (origen, destino o ambas)

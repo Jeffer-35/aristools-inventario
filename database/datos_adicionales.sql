@@ -169,4 +169,17 @@ SET costo_unitario = (SELECT p.costo_referencia FROM producto p
                       WHERE p.id_producto = movimiento_inventario.id_producto)
 WHERE id_movimiento > 0 AND costo_unitario IS NULL;
 
+-- ---------------------------------------------------------------------
+-- Causa estándar de las pérdidas de los datos de prueba (reporte de pérdidas):
+-- los ajustes negativos del conteo son faltantes; las mermas y daños cargados
+-- sin causa quedan como "Otro".
+-- ---------------------------------------------------------------------
+UPDATE movimiento_inventario SET causa_baja = 'FALTANTE'
+WHERE id_movimiento > 0 AND causa_baja IS NULL AND id_tipo_movimiento IN
+      (SELECT id_tipo_movimiento FROM tipo_movimiento WHERE nombre = 'Ajuste negativo');
+
+UPDATE movimiento_inventario SET causa_baja = 'OTRO'
+WHERE id_movimiento > 0 AND causa_baja IS NULL AND id_tipo_movimiento IN
+      (SELECT id_tipo_movimiento FROM tipo_movimiento WHERE nombre IN ('Merma', 'Producto dañado o vencido'));
+
 COMMIT;

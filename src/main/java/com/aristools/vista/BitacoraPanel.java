@@ -8,7 +8,6 @@ import java.awt.Dimension;
 import java.awt.GridLayout;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
 import java.util.List;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
@@ -30,8 +29,8 @@ public class BitacoraPanel extends JPanel implements Recargable {
     private static final DateTimeFormatter FECHA_HORA = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss");
 
     private final BitacoraControlador controlador = new BitacoraControlador();
-    private final JTextField txtDesde = campoFecha();
-    private final JTextField txtHasta = campoFecha();
+    private final CampoFecha txtDesde = new CampoFecha();
+    private final CampoFecha txtHasta = new CampoFecha();
     private final JComboBox<String> cmbAccion = new JComboBox<>();
     private final JTextField txtBuscar = new JTextField();
     private final JLabel lblResumen = new JLabel(" ");
@@ -68,7 +67,7 @@ public class BitacoraPanel extends JPanel implements Recargable {
         btnImprimir.addActionListener(e -> {
             try {
                 ExportadorPdf.exportar(this, modelo, "Bitácora de auditoría",
-                        List.of("Desde: " + txtDesde.getText().trim() + "   ·   Hasta: " + txtHasta.getText().trim()
+                        List.of("Desde: " + txtDesde.texto() + "   ·   Hasta: " + txtHasta.texto()
                                 + "   ·   Acción: " + cmbAccion.getSelectedItem()), lblResumen.getText(), "bitacora");
             } catch (NegocioException ex) {
                 Tema.error(this, ex.getMessage());
@@ -78,6 +77,7 @@ public class BitacoraPanel extends JPanel implements Recargable {
         BarraFiltros filtros = new BarraFiltros(2);
         filtros.agregar("Desde:", txtDesde);
         filtros.agregar("Hasta:", txtHasta);
+        filtros.agregar("Período:", CampoFecha.accesosRapidos(txtDesde, txtHasta));
         filtros.agregar("Acción:", cmbAccion);
         filtros.agregar("Buscar:", txtBuscar);
         filtros.agregarBotones(btnConsultar, btnExportar, btnImprimir);
@@ -112,8 +112,8 @@ public class BitacoraPanel extends JPanel implements Recargable {
             for (String a : controlador.listarAcciones()) {
                 cmbAccion.addItem(a);
             }
-            txtDesde.setText(LocalDate.now().minusDays(7).toString());
-            txtHasta.setText(LocalDate.now().toString());
+            txtDesde.setFecha(LocalDate.now().minusDays(7));
+            txtHasta.setFecha(LocalDate.now());
         }
         consultar();
     }
@@ -134,21 +134,7 @@ public class BitacoraPanel extends JPanel implements Recargable {
         }
     }
 
-    private static LocalDate fecha(JTextField campo, String nombre) {
-        String texto = campo.getText().trim();
-        if (texto.isEmpty()) {
-            return null;
-        }
-        try {
-            return texto.contains("/") ? LocalDate.parse(texto, DateTimeFormatter.ofPattern("d/M/yyyy")) : LocalDate.parse(texto);
-        } catch (DateTimeParseException e) {
-            throw new NegocioException("La fecha '" + nombre + "' no es válida. Escríbala como AAAA-MM-DD o DD/MM/AAAA.");
-        }
-    }
-
-    private static JTextField campoFecha() {
-        JTextField t = new JTextField(9);
-        t.putClientProperty("JTextField.placeholderText", "AAAA-MM-DD");
-        return t;
+    private static LocalDate fecha(CampoFecha campo, String nombre) {
+        return campo.getFecha(nombre);
     }
 }

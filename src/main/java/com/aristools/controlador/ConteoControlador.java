@@ -6,6 +6,7 @@ import com.aristools.dao.ProductoDAO;
 import com.aristools.dao.TipoMovimientoDAO;
 import com.aristools.modelo.Ajuste;
 import com.aristools.modelo.Bodega;
+import com.aristools.modelo.CausaBaja;
 import com.aristools.modelo.Existencia;
 import com.aristools.modelo.LineaConteo;
 import com.aristools.modelo.Producto;
@@ -150,6 +151,9 @@ public class ConteoControlador {
                 Ajuste a = new Ajuste(p, diferencia > 0 ? positivo : negativo, Sesion.getUsuario(),
                         Math.abs(diferencia), bodega, diferencia > 0);
                 a.setMotivo("Conteo físico");
+                if (diferencia < 0) {
+                    a.setCausaBaja(CausaBaja.FALTANTE);   // lo que falta en el conteo es una pérdida
+                }
                 a.setDocumentoSoporte(documento);
                 a.validar();
                 ajustes.add(a);

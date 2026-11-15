@@ -10,6 +10,7 @@ public class Bodega {
     private String nombre;
     private String ubicacion;
     private EstadoRegistro estado;
+    private boolean cuarentena;   // true: guarda mercancía averiada mientras se decide la baja
 
     /** Constructor vacío: lo usan los DAO al leer filas de la base de datos. */
     public Bodega() {
@@ -28,6 +29,18 @@ public class Bodega {
     /** Las bodegas inactivas no se pueden usar en movimientos nuevos (RF-004). */
     public boolean estaActiva() {
         return estado == EstadoRegistro.ACTIVO;
+    }
+
+    /**
+     * La bodega de cuarentena separa la mercancía averiada del inventario
+     * disponible: no recibe compras y de ella no sale consumo interno.
+     */
+    public boolean isCuarentena() {
+        return cuarentena;
+    }
+
+    public void setCuarentena(boolean cuarentena) {
+        this.cuarentena = cuarentena;
     }
 
     // ----- get / set de cada atributo -----

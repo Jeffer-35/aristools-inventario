@@ -7,6 +7,7 @@ import com.aristools.modelo.Producto;
 import com.aristools.modelo.Proveedor;
 import com.aristools.modelo.TipoMovimiento;
 import com.aristools.util.Formato;
+import com.aristools.util.NegocioException;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
@@ -15,6 +16,8 @@ import java.util.ArrayList;
 import java.util.List;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
+import javax.swing.JLabel;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
@@ -28,6 +31,9 @@ import javax.swing.table.DefaultTableModel;
  *
  * En las compras se escribe el costo unitario de la factura: con ese dato el
  * sistema recalcula el costo promedio del producto cuando la compra se autoriza.
+ * Para ahorrar digitación, al elegir el producto el campo se llena con el costo
+ * de la última compra (o el promedio), y si el costo escrito es muy distinto
+ * del promedio se pide confirmación antes de agregarlo.
  */
 public class EntradaPanel extends PanelMovimiento {
 
@@ -39,6 +45,7 @@ public class EntradaPanel extends PanelMovimiento {
     private final JComboBox<Producto> cmbProducto = new JComboBox<>();
     private final JTextField txtCantidad = new JTextField();
     private final JTextField txtCosto = new JTextField();
+    private final JLabel lblCostoReferencia = new JLabel(" ");
     private final List<Producto> productosLista = new ArrayList<>();
     private final List<Integer> cantidadesLista = new ArrayList<>();
     private final List<BigDecimal> costosLista = new ArrayList<>();   // null en las devoluciones
@@ -57,7 +64,7 @@ public class EntradaPanel extends PanelMovimiento {
         agregarCampo("Bodega destino", cmbBodega);
         agregarCampo("Documento soporte", txtDocumento);
         agregarCampo("Observación", txtObservacion);
-        txtDocumento.putClientProperty("JTextField.placeholderText", "Factura o remisión (obligatorio en compras)");
+        txtDocumento.putClientProperty("JTextField.placeholderText", "N.º de factura o remisión, ej. FAC-004512 (obligatorio en compras)");
 
         // Línea para agregar productos a la lista
         JPanel lineaProducto = new JPanel(new BorderLayout(8, 0));
@@ -77,6 +84,8 @@ public class EntradaPanel extends PanelMovimiento {
         lineaProducto.add(cmbProducto, BorderLayout.CENTER);
         lineaProducto.add(derecha, BorderLayout.EAST);
         agregarCampo("Producto", lineaProducto);
+        lblCostoReferencia.setForeground(Tema.TEXTO_SUAVE);
+        agregarCampo("Costo de referencia", lblCostoReferencia);
 
         Tema.estilizarTabla(tablaLista);
         tablaLista.getColumnModel().getColumn(1).setPreferredWidth(280);
@@ -106,7 +115,9 @@ public class EntradaPanel extends PanelMovimiento {
                 cmbProveedor.setSelectedIndex(-1);
                 txtCosto.setText("");
             }
+            sugerirCosto();
         });
+        cmbProducto.addActionListener(e -> sugerirCosto());
 
         JPanel arriba = new JPanel(new BorderLayout());
         arriba.setOpaque(false);
@@ -134,6 +145,36 @@ public class EntradaPanel extends PanelMovimiento {
                 && "Compra".equalsIgnoreCase(cmbTipo.getSelectedItem().toString());
     }
 
+    /**
+     * Llena el costo con el de la última compra del producto (o su costo
+     * promedio si nunca se ha comprado) y muestra ambos como referencia.
+     * El usuario lo cambia si la factura trae otro precio.
+     */
+    private void sugerirCosto() {
+        Producto p = (Producto) cmbProducto.getSelectedItem();
+        if (!esCompra() || p == null) {
+            lblCostoReferencia.setText(esCompra() ? "Seleccione un producto" : "Solo aplica a las compras");
+            return;
+        }
+        try {
+            BigDecimal ultimo = movimientos.ultimoCostoCompra(p.getIdProducto());
+            BigDecimal sugerido = ultimo != null ? ultimo : referencia(p);
+            txtCosto.setText(sugerido == null ? "" : Formato.pesos(sugerido));
+            lblCostoReferencia.setText((ultimo == null ? "Sin compras anteriores" : "Última compra: " + Formato.pesos(ultimo))
+                    + "  ·  Costo promedio: " + Formato.pesos(p.getCostoPromedio()) + "  ·  Verifique con la factura");
+        } catch (NegocioException ex) {
+            lblCostoReferencia.setText("No se pudo consultar el costo: " + ex.getMessage());
+        }
+    }
+
+    // Costo con el que se compara: el promedio del producto o, si aún no tiene, su costo de referencia.
+    private static BigDecimal referencia(Producto p) {
+        if (p.getCostoPromedio() != null && p.getCostoPromedio().signum() > 0) {
+            return p.getCostoPromedio();
+        }
+        return p.getCostoReferencia() != null && p.getCostoReferencia().signum() > 0 ? p.getCostoReferencia() : null;
+    }
+
     private void agregarProducto() {
         Producto p = (Producto) cmbProducto.getSelectedItem();
         if (p == null) {
@@ -143,6 +184,18 @@ public class EntradaPanel extends PanelMovimiento {
         int cantidad = leerCantidad(txtCantidad.getText());
         // En la compra el costo es obligatorio; en la devolución no se pide
         BigDecimal costo = esCompra() ? Formato.leerPesos(txtCosto.getText(), "costo unitario") : null;
+        // Un costo muy distinto del promedio suele ser un error de digitación (ej. 5.5 en vez de 5.500)
+        if (Entrada.costoInusual(costo, referencia(p))) {
+            int respuesta = JOptionPane.showConfirmDialog(this, "El costo escrito (" + Formato.pesos(costo)
+                    + ") es muy distinto del costo promedio de este producto (" + Formato.pesos(referencia(p)) + ").\n\n"
+                    + "¿Está seguro de que ese es el valor de la factura?\n"
+                    + "Recuerde: para miles escriba 5500 o 5.500, no 5.5.", "Revisar el costo",
+                    JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+            if (respuesta != JOptionPane.YES_OPTION) {
+                txtCosto.requestFocus();
+                return;
+            }
+        }
         productosLista.add(p);
         cantidadesLista.add(cantidad);
         costosLista.add(costo);
@@ -150,7 +203,7 @@ public class EntradaPanel extends PanelMovimiento {
             costo == null ? "—" : Formato.pesos(costo),
             costo == null ? "—" : Formato.pesos(costo.multiply(BigDecimal.valueOf(cantidad)))});
         txtCantidad.setText("");
-        txtCosto.setText("");
+        sugerirCosto();
         cmbProducto.requestFocus();
     }
 

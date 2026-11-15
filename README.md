@@ -22,7 +22,7 @@ cd aristools-inventario
 mvn test
 ```
 
-Resultado esperado: `Tests run: 53, Failures: 0, Errors: 0` y `BUILD SUCCESS`, en cualquier computador con JDK 17 y Maven, sin instalar MySQL y sin contraseñas.
+Resultado esperado: `Tests run: 61, Failures: 0, Errors: 0` y `BUILD SUCCESS`, en cualquier computador con JDK 17 y Maven, sin instalar MySQL y sin contraseñas.
 
 ---
 
@@ -37,15 +37,15 @@ Resultado esperado: `Tests run: 53, Failures: 0, Errors: 0` y `BUILD SUCCESS`, e
 | RF-003 | Gestionar productos y categorías | Administrador |
 | RF-004 | Gestionar bodegas | Administrador |
 | RF-005 | Gestionar proveedores | Jefe de Compras / Administrador |
-| RF-006 | Registrar entradas de mercancía (compra, devolución); la compra exige el costo unitario de la factura | Almacenista |
-| RF-007 | Registrar salidas (consumo interno, merma, dañado o vencido, devolución a proveedor) | Almacenista |
+| RF-006 | Registrar entradas de mercancía (compra, devolución); la compra exige el número de la factura y su costo unitario, que el sistema propone con el de la última compra | Almacenista |
+| RF-007 | Registrar salidas (consumo interno, merma, dañado o vencido, devolución a proveedor); las pérdidas exigen causa estándar y motivo | Almacenista |
 | RF-008 | Registrar transferencias entre bodegas | Almacenista |
 | RF-009 | Realizar conteo físico y generar ajustes | Almacenista |
 | RF-010 | Autorizar o rechazar entradas | Jefe de Compras |
 | RF-011 | Autorizar o rechazar salidas críticas y ajustes negativos | Supervisor de Bodega |
 | RF-012 | Generar alertas de stock mínimo y máximo | Sistema |
 | RF-013 | Consultar existencias | Todos |
-| RF-014 | Generar kardex valorizado y reportes de movimientos (exportación a Excel en CSV e impresión en PDF) | Administrador, Jefe de Compras, Supervisor |
+| RF-014 | Generar kardex valorizado, reportes de movimientos y de pérdidas, y documentos de soporte (exportación a Excel en CSV e impresión en PDF) | Administrador, Jefe de Compras, Supervisor |
 | RF-015 | Configurar parámetros globales y umbrales | Administrador |
 
 **Flujo principal:** el Almacenista registra el movimiento → el sistema lo valida → si el tipo lo exige, queda **PENDIENTE** → un usuario **distinto** lo autoriza o lo rechaza con motivo → al autorizarse, el stock se actualiza dentro de una transacción → se evalúan las alertas → el movimiento queda en el kardex.
@@ -54,7 +54,7 @@ Resultado esperado: `Tests run: 53, Failures: 0, Errors: 0` y `BUILD SUCCESS`, e
 
 Además de las unidades, el kardex lleva el valor en pesos del inventario:
 
-- En cada **compra** el Almacenista escribe el costo unitario de la factura. Cuando el Jefe de Compras la autoriza, el sistema recalcula el costo promedio del producto:
+- En cada **compra** el Almacenista confirma el costo unitario de la factura. Al elegir el producto, el campo se llena con el costo de la última compra (o el promedio) y se muestran ambos como referencia; si el costo escrito es menos de la mitad o más del doble del promedio, el programa pide confirmación (atrapa errores como escribir 5.5 en vez de 5.500). Cuando el Jefe de Compras la autoriza, el sistema recalcula el costo promedio del producto:
 
   ```
   nuevo promedio = (stock anterior × promedio anterior + cantidad comprada × costo de la factura)
@@ -66,9 +66,34 @@ Además de las unidades, el kardex lleva el valor en pesos del inventario:
 
 **Ejemplo:** hay 12 rollos de cable a $ 185.000 y se compran 8 a $ 200.000. El promedio queda en (12 × 185.000 + 8 × 200.000) ÷ 20 = **$ 191.000**. Luego salen 5 rollos valorados a $ 191.000 y el saldo queda en 15 rollos por $ 2.865.000. Este caso lo comprueba la prueba `KardexValorizadoTest`.
 
+### Averías, pérdidas y bodega de cuarentena
+
+| Paso | Quién | Qué pasa |
+|---|---|---|
+| 1 | Almacenista | Pasa la mercancía averiada a la **bodega de cuarentena** con una transferencia. Queda separada: de allí no sale consumo interno y allí no entran compras |
+| 2 | Almacenista | Registra la baja (merma o producto dañado o vencido) con su **causa estándar** y el motivo. Queda Pendiente |
+| 3 | Supervisor de Bodega | La autoriza o la rechaza. Al autorizar, el stock baja y se puede generar el **acta de baja** en PDF |
+| 4 | Supervisor o Administrador | Consulta el **reporte de pérdidas** del período, con el valor perdido en pesos y totales por causa y por bodega |
+
+Las causas son una lista fija: vencido, roto o golpeado en bodega, daño en transporte, humedad, defecto de fábrica, faltante sin explicación (la asigna el sistema a los ajustes negativos del conteo) y otro. El valor de cada pérdida es la cantidad por el costo promedio del producto en el momento de la baja.
+
+### Documentos de soporte
+
+Cada movimiento autorizado tiene su documento en PDF. El número es el prefijo del tipo y el número del movimiento (por ejemplo `BAJ-000057`), así nunca se repite y siempre lleva al registro.
+
+| Prefijo | Documento | Movimientos |
+|---|---|---|
+| `ENT` | Comprobante de entrada | Compra y devolución |
+| `VAL` | Vale de salida | Consumo interno y devolución a proveedor |
+| `BAJ` | Acta de baja | Merma y producto dañado o vencido |
+| `TRF` | Comprobante de traslado | Transferencia entre bodegas |
+| `CNT` | Acta de ajuste por conteo físico | Ajuste positivo y negativo |
+
+Se generan desde *Reportes → Movimientos* (botón **Documento PDF**) y al autorizar un movimiento. **Elaboró** es quien registró el movimiento y **Revisó** quien lo autorizó, con fecha y hora. El título y el prefijo los define cada subclase de `Movimiento` (polimorfismo).
+
 ### Reportes en PDF
 
-El botón **Imprimir PDF** está en el kardex, el reporte de movimientos, las existencias y la bitácora. El documento lleva el nombre del establecimiento, los filtros usados, la tabla, el resumen y los responsables:
+El botón **Imprimir PDF** está en el kardex, el reporte de movimientos, el reporte de pérdidas, las existencias y la bitácora. Las fechas de esos filtros se eligen en un calendario, con botones rápidos *Hoy*, *Este mes* y *Mes anterior*. El documento lleva el nombre del establecimiento, los filtros usados, la tabla, el resumen y los responsables:
 
 - **Elaboró:** el usuario que genera el reporte, con su rol.
 - **Revisó:** el responsable de revisión que el Administrador define en *Configuración* (el cambio queda en la bitácora).
@@ -108,6 +133,7 @@ Registra las acciones sensibles: ingresos e intentos fallidos, cambios de contra
 | FlatLaf | 3.5.1 | Apariencia moderna de las ventanas Swing |
 | JUnit 5 | 5.10.2 | Pruebas automatizadas |
 | OpenPDF | 1.3.43 | Generación de los reportes en PDF |
+| LGoodDatePicker | 11.2.1 | Calendario para elegir las fechas de los filtros |
 | H2 | 2.2.224 | Base de datos en memoria, **solo para las pruebas** (no va en el `.jar`) |
 
 ---
@@ -133,7 +159,7 @@ Registra las acciones sensibles: ingresos e intentos fallidos, cambios de contra
 
 ### Puntos técnicos destacados
 
-- **Herencia y polimorfismo:** `Movimiento` es una clase abstracta con cuatro subclases (`Entrada`, `Salida`, `Transferencia`, `Ajuste`). Cada una implementa `validar()` y `calcularCambiosStock()` a su manera: la entrada suma, la salida resta y la transferencia resta en el origen y suma en el destino. Para el kardex valorizado, `Entrada` redefine `costoParaValorar()` y `nuevoCostoPromedio()`: solo la compra cambia el costo promedio. `MovimientoDAO.mapear()` crea la subclase correcta al leer de la base. En la vista, `PanelCatalogo` y `PanelMovimiento` son clases abstractas que comparten el comportamiento de las pantallas, y la interfaz `Recargable` permite refrescar cualquier panel.
+- **Herencia y polimorfismo:** `Movimiento` es una clase abstracta con cuatro subclases (`Entrada`, `Salida`, `Transferencia`, `Ajuste`). Cada una implementa `validar()` y `calcularCambiosStock()` a su manera: la entrada suma, la salida resta y la transferencia resta en el origen y suma en el destino. Para el kardex valorizado, `Entrada` redefine `costoParaValorar()` y `nuevoCostoPromedio()`: solo la compra cambia el costo promedio. Cada subclase define también su documento de soporte (`prefijoDocumento()`, `tituloDocumento()`) y si es una pérdida (`esPerdida()`). `MovimientoDAO.mapear()` crea la subclase correcta al leer de la base. En la vista, `PanelCatalogo` y `PanelMovimiento` son clases abstractas que comparten el comportamiento de las pantallas, y la interfaz `Recargable` permite refrescar cualquier panel.
 - **Transacciones:** `GestorInventario` aplica cada movimiento con `COMMIT` / `ROLLBACK`: o se guarda todo (movimiento, costo, existencias y alertas) o no se guarda nada.
 - **Concurrencia:** la fila del producto (para el costo promedio) y las existencias se bloquean con `SELECT ... FOR UPDATE` y las bodegas se bloquean siempre en el mismo orden (por id) para evitar bloqueos cruzados en transferencias simultáneas. Al autorizar, se bloquea la fila del movimiento para que dos usuarios no lo resuelvan a la vez.
 - **Segregación de funciones:** quien registra un movimiento no puede autorizarlo. Se valida en el modelo, en el controlador y en la base de datos (`CHECK`).
@@ -154,20 +180,21 @@ aristools-inventario/
 │   ├── actualizar_bd_v3.sql     #   v3: seguridad de contraseñas
 │   ├── actualizar_bd_v4.sql     #   v4: bitácora de auditoría
 │   ├── actualizar_bd_v5.sql     #   v5: kardex valorizado y responsable de revisión
+│   ├── actualizar_bd_v6.sql     #   v6: causas de baja y bodega de cuarentena
 │   ├── respaldar_bd.bat         # Respaldo (RNF-007)
 │   └── restaurar_bd.bat         # Restauración (RNF-007)
 ├── src/main/java/com/aristools/
 │   ├── Main.java                # Punto de entrada del programa
 │   ├── conexion/    ConexionDB
-│   ├── modelo/      26 clases (entidades, Movimiento y sus 4 subclases, enumeraciones y auxiliares)
+│   ├── modelo/      28 clases (entidades, Movimiento y sus 4 subclases, enumeraciones y auxiliares)
 │   ├── dao/         13 DAO
 │   ├── seguridad/   Accion, Permisos, PasswordUtil, Sesion
 │   ├── controlador/ 15 clases (controladores, GestorInventario y Auditoria)
 │   ├── util/        NegocioException, Validador, Cambios, Formato, ReportePdf
-│   └── vista/       32 clases (ventanas, paneles y diálogos Swing)
+│   └── vista/       33 clases (ventanas, paneles y diálogos Swing)
 ├── src/main/resources/
 │   └── db.properties.ejemplo    # Plantilla de la conexión a MySQL (copiar como db.properties)
-├── src/test/java/com/aristools/ # 53 pruebas JUnit
+├── src/test/java/com/aristools/ # 61 pruebas JUnit
 ├── src/test/resources/
 │   └── db-pruebas.properties    # Conexión de las pruebas: H2 en memoria
 ├── ejecutar_aristools.bat       # Lanzador del .jar (sin ventana de consola)
@@ -177,10 +204,10 @@ aristools-inventario/
 
 | Paquete | Clases |
 |---|---|
-| `modelo` | Rol, Usuario, Categoria, Producto, Bodega, Proveedor, Existencia, TipoMovimiento, Alerta, Parametro, RegistroBitacora, **Movimiento** (abstracta), Entrada, Salida, Transferencia, Ajuste, EstadoUsuario, EstadoRegistro, EstadoMovimiento, EstadoAlerta, TipoAlerta, Naturaleza, CambioStock, LineaKardex, LineaConteo, FiltroMovimiento |
+| `modelo` | Rol, Usuario, Categoria, Producto, Bodega, Proveedor, Existencia, TipoMovimiento, Alerta, Parametro, RegistroBitacora, **Movimiento** (abstracta), Entrada, Salida, Transferencia, Ajuste, EstadoUsuario, EstadoRegistro, EstadoMovimiento, EstadoAlerta, TipoAlerta, Naturaleza, CausaBaja, CambioStock, TotalPerdida, LineaKardex, LineaConteo, FiltroMovimiento |
 | `dao` | UsuarioDAO, RolDAO, CategoriaDAO, ProductoDAO, BodegaDAO, ProveedorDAO, TipoMovimientoDAO, ParametroDAO, ExistenciaDAO, MovimientoDAO, AlertaDAO, ReporteDAO, BitacoraDAO |
 | `controlador` | LoginControlador, GestorInventario, MovimientoControlador, AutorizacionControlador, AlertaControlador, ConteoControlador, ReporteControlador, PanelControlador, UsuarioControlador, ProductoControlador, BodegaControlador, ProveedorControlador, ParametroControlador, BitacoraControlador, Auditoria |
-| `vista` | **Ventanas y diálogos:** LoginVista, PrincipalVista, CambiarClaveDialogo, PrimerAdminDialogo · **Pantallas:** InicioPanel, CatalogosPanel, ProductosPanel, CategoriasPanel, BodegasPanel, ProveedoresPanel, UsuariosPanel, MovimientosPanel, EntradaPanel, SalidaPanel, TransferenciaPanel, ConteoPanel, AutorizacionesPanel, ExistenciasPanel, ReportesPanel, ParametrosPanel, BitacoraPanel · **Base y apoyo:** PanelCatalogo y PanelMovimiento (abstractas), Recargable (interfaz), PanelDesplazable, PanelEnConstruccion, BarraFiltros, ExportadorCsv, ExportadorPdf, MonitorInactividad, MostrarClave, Tema |
+| `vista` | **Ventanas y diálogos:** LoginVista, PrincipalVista, CambiarClaveDialogo, PrimerAdminDialogo · **Pantallas:** InicioPanel, CatalogosPanel, ProductosPanel, CategoriasPanel, BodegasPanel, ProveedoresPanel, UsuariosPanel, MovimientosPanel, EntradaPanel, SalidaPanel, TransferenciaPanel, ConteoPanel, AutorizacionesPanel, ExistenciasPanel, ReportesPanel, ParametrosPanel, BitacoraPanel · **Base y apoyo:** PanelCatalogo y PanelMovimiento (abstractas), Recargable (interfaz), PanelDesplazable, PanelEnConstruccion, BarraFiltros, CampoFecha, ExportadorCsv, ExportadorPdf, MonitorInactividad, MostrarClave, Tema |
 
 ---
 
@@ -196,11 +223,11 @@ Esquema `aristools` (InnoDB, utf8mb4) con **12 tablas**, 12 llaves primarias, **
 | Control | `alerta`, `parametro` |
 | Auditoría | `bitacora` (solo inserción, protegida por 2 disparadores) |
 
-Los valores de estado se guardan en mayúscula (`ACTIVO`, `PENDIENTE`, `AUTORIZADO`…) porque coinciden con las enumeraciones de Java. El stock no se guarda en `producto`: es la suma de `existencia` y solo cambia con movimientos autorizados. Para el kardex valorizado, `producto` guarda el `costo_promedio` y cada movimiento su `costo_unitario`; los datos de prueba se valoran al costo de referencia.
+Los valores de estado se guardan en mayúscula (`ACTIVO`, `PENDIENTE`, `AUTORIZADO`…) porque coinciden con las enumeraciones de Java. El stock no se guarda en `producto`: es la suma de `existencia` y solo cambia con movimientos autorizados. Para el kardex valorizado, `producto` guarda el `costo_promedio` y cada movimiento su `costo_unitario`; los datos de prueba se valoran al costo de referencia. Las pérdidas guardan su `causa_baja` y la bodega de cuarentena se marca con `es_cuarentena`.
 
 **Datos obligatorios:** 4 roles, 9 tipos de movimiento (Compra, Devolución, Consumo interno, Merma, Producto dañado o vencido, Devolución a proveedor, Transferencia, Ajuste positivo y Ajuste negativo) y 6 parámetros (nombre del establecimiento, stock mínimo por defecto 10, stock máximo por defecto 100, días de vigencia de la contraseña 0, minutos de inactividad 15 y responsable de revisión de los reportes).
 
-**Datos de prueba:** 6 usuarios, 6 categorías, 22 productos (21 activos), 4 bodegas (3 activas), 5 proveedores (4 activos), 54 movimientos (6 pendientes de autorización) y 6 alertas activas.
+**Datos de prueba:** 6 usuarios, 6 categorías, 22 productos (21 activos), 5 bodegas (4 activas, una de cuarentena), 5 proveedores (4 activos), 54 movimientos (6 pendientes de autorización) y 6 alertas activas.
 
 ### Crear la base (instalación nueva)
 
@@ -220,6 +247,7 @@ En MySQL Workbench, ejecutar en este orden:
 | `actualizar_bd_v3.sql` | Seguridad de contraseñas: 2 columnas en `usuario` y 2 parámetros |
 | `actualizar_bd_v4.sql` | Bitácora de auditoría: tabla `bitacora` y 2 disparadores |
 | `actualizar_bd_v5.sql` | Kardex valorizado: `costo_promedio` en `producto`, `costo_unitario` en `movimiento_inventario` y parámetro `responsable_revision` |
+| `actualizar_bd_v6.sql` | Averías: `causa_baja` en `movimiento_inventario`, `es_cuarentena` en `bodega` y la bodega de cuarentena |
 
 Cada integrante ejecuta los scripts en su propio MySQL: GitHub comparte el código, no la base de datos.
 
@@ -251,7 +279,7 @@ Cada integrante ejecuta los scripts en su propio MySQL: GitHub comparte el códi
    ```
    mvn clean package
    ```
-   Se crea `target/Aristools.jar`, con las librerías incluidas (MySQL, BCrypt, FlatLaf y OpenPDF).
+   Se crea `target/Aristools.jar`, con las librerías incluidas (MySQL, BCrypt, FlatLaf, OpenPDF y LGoodDatePicker).
 2. Copiar en una misma carpeta (por ejemplo, `Aristools_programa`):
    - `target/Aristools.jar`
    - `ejecutar_aristools.bat`
@@ -279,7 +307,7 @@ Contraseña de todos: `Aristools2026*`
 
 ---
 
-## 8. Pruebas automatizadas (53)
+## 8. Pruebas automatizadas (61)
 
 ```
 mvn test
@@ -305,10 +333,11 @@ Las pruebas usan **H2**, una base de datos en memoria que Maven descarga sola (l
 |---|---|---|
 | `BaseDePruebasTest` | 3 | Las pruebas usan H2 y no MySQL; el script real crea las 12 tablas; el lector separa bien las sentencias de un script |
 | `ConexionDBTest` | 2 | `ConexionDB` entrega una conexión válida; existen los 4 roles y los 9 tipos de movimiento |
-| `ModeloTest` | 16 | Herencia y polimorfismo, validaciones (cantidad, motivo, proveedor, documento y costo en compras), costo promedio ponderado, segregación de funciones, bloqueo al tercer intento, umbrales y conteo físico |
-| `KardexValorizadoTest` | 1 | Flujo completo: compra registrada, autorizada por otro usuario, promedio recalculado, salida valorada y kardex en pesos |
+| `ModeloTest` | 21 | Herencia y polimorfismo, validaciones (cantidad, motivo y causa, proveedor, número de factura y costo en compras, costo inusual), costo promedio ponderado, reglas de la cuarentena, documentos de soporte, totales de pérdidas, segregación de funciones, bloqueo al tercer intento, umbrales y conteo físico |
+| `PerdidasTest` | 2 | Flujo completo de una avería: cuarentena, baja con causa, autorización, acta de baja y reporte de pérdidas en pesos; el reporte solo lo ven Supervisor y Administrador |
+| `KardexValorizadoTest` | 1 | Flujo completo: costo sugerido de la última compra, compra registrada y autorizada por otro usuario, promedio recalculado, salida valorada y kardex en pesos |
 | `FormatoTest` | 3 | Forma de mostrar y de leer valores en pesos |
-| `ReportePdfTest` | 2 | El PDF trae encabezado, datos, resumen y responsables; un reporte largo ocupa varias páginas |
+| `ReportePdfTest` | 3 | El reporte trae encabezado, datos, resumen y responsables; el documento de soporte trae número, datos y responsables; un reporte largo ocupa varias páginas |
 | `DaoLecturaTest` | 5 | El kardex coincide con el stock, se crean las subclases correctas y los hashes BCrypt son compatibles |
 | `SeguridadTest` | 4 | BCrypt con sal, permisos por rol y `Sesion.exigir()` |
 | `ClaveSeguraTest` | 4 | Reglas de la contraseña segura y vencimiento según los días de vigencia |
@@ -344,10 +373,11 @@ Ambos detectan automáticamente la carpeta de MySQL Server 8.x o 9.x en `C:\Prog
 | 11 | Seguridad de contraseñas y bitácora de auditoría | ✅ |
 | 12 | Pruebas sin depender de MySQL (H2 en memoria) | ✅ |
 | 13 | Kardex valorizado (costo promedio ponderado) y reportes en PDF | ✅ |
+| 14 | Averías con cuarentena, causas de baja, reporte de pérdidas y documentos de soporte | ✅ |
 
 ### Mejoras planeadas para la entrega final
 
-Averías y reporte de pérdidas con sus documentos de soporte en PDF, sugerencia de compra, clasificación ABC con conteo cíclico, control de vencimientos (FEFO), control mensual, tablero de indicadores (KPI) y respaldo automático.
+Sugerencia de compra, clasificación ABC con conteo cíclico, control de vencimientos (FEFO), control mensual, tablero de indicadores (KPI) y respaldo automático.
 
 **Trabajo futuro (fuera del alcance):** base de datos en red o en la nube, control de stock por lote y lector de código de barras.
 

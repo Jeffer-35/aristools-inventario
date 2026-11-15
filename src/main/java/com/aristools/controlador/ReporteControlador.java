@@ -1,8 +1,10 @@
 package com.aristools.controlador;
 
 import com.aristools.dao.ExistenciaDAO;
+import com.aristools.dao.MovimientoDAO;
 import com.aristools.dao.ReporteDAO;
 import com.aristools.dao.TipoMovimientoDAO;
+import com.aristools.modelo.EstadoMovimiento;
 import com.aristools.modelo.Existencia;
 import com.aristools.modelo.FiltroMovimiento;
 import com.aristools.modelo.LineaKardex;
@@ -11,6 +13,7 @@ import com.aristools.modelo.Naturaleza;
 import com.aristools.modelo.TipoMovimiento;
 import com.aristools.modelo.Usuario;
 import com.aristools.seguridad.Accion;
+import com.aristools.seguridad.Permisos;
 import com.aristools.seguridad.Sesion;
 import com.aristools.util.NegocioException;
 import java.sql.SQLException;
@@ -34,6 +37,7 @@ public class ReporteControlador {
     private final ExistenciaDAO existenciaDAO = new ExistenciaDAO();
     private final ReporteDAO reporteDAO = new ReporteDAO();
     private final TipoMovimientoDAO tipoDAO = new TipoMovimientoDAO();
+    private final MovimientoDAO movimientoDAO = new MovimientoDAO();
 
     /**
      * Tipos de movimiento para el filtro de reportes, recortados al alcance
@@ -97,6 +101,52 @@ public class ReporteControlador {
                 lista.removeIf(m -> !alcance.contains(m.getTipo().getNombre()));
             }
             return lista;
+        } catch (SQLException e) {
+            throw NegocioException.deBaseDeDatos(e);
+        }
+    }
+
+    /**
+     * Reporte de pérdidas del período: mermas, daños, vencidos y faltantes
+     * ya autorizados, con su valor en pesos. Solo para el Supervisor de
+     * Bodega y el Administrador.
+     */
+    public List<Movimiento> reportePerdidas(LocalDate desde, LocalDate hasta, Integer idBodega) {
+        Sesion.exigir(Accion.VER_PERDIDAS);
+        validarFechas(desde, hasta);
+        try {
+            return reporteDAO.perdidas(desde, hasta, idBodega);
+        } catch (SQLException e) {
+            throw NegocioException.deBaseDeDatos(e);
+        }
+    }
+
+    /**
+     * Movimiento completo para imprimir su documento de soporte. El
+     * documento solo existe cuando el movimiento ya está autorizado, y cada
+     * rol solo puede imprimir los movimientos de su alcance.
+     */
+    public Movimiento movimientoParaDocumento(int idMovimiento) {
+        Usuario u = Sesion.getUsuario();
+        if (u == null || !(Permisos.puede(u.getRol(), Accion.VER_REPORTES)
+                || Permisos.puede(u.getRol(), Accion.AUTORIZAR_ENTRADAS)
+                || Permisos.puede(u.getRol(), Accion.AUTORIZAR_SALIDAS))) {
+            throw new NegocioException("No tiene permiso para imprimir documentos de soporte.");
+        }
+        try {
+            Movimiento m = movimientoDAO.buscarPorId(idMovimiento);
+            if (m == null) {
+                throw new NegocioException("El movimiento " + idMovimiento + " no existe.");
+            }
+            Set<String> alcance = alcance();
+            if (alcance != null && !alcance.contains(m.getTipo().getNombre())) {
+                throw new NegocioException("Ese movimiento no está dentro del alcance de su rol.");
+            }
+            if (m.getEstado() != EstadoMovimiento.AUTORIZADO) {
+                throw new NegocioException("El documento de soporte se genera cuando el movimiento está autorizado. "
+                        + "Este movimiento está " + m.getEstado() + ".");
+            }
+            return m;
         } catch (SQLException e) {
             throw NegocioException.deBaseDeDatos(e);
         }

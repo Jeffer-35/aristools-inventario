@@ -166,7 +166,13 @@ public class AutorizacionesPanel extends JPanel implements Recargable {
         }
         return new Object[]{m.getIdMovimiento(), fecha, m.getTipo().getNombre(), m.getProducto().getNombre(),
             bodega == null ? "" : bodega.getNombre(), m.getCantidad(), stockActual(m, bodega),
-            m.getMotivo() == null ? "—" : m.getMotivo(), registro};
+            causaYMotivo(m), registro};
+    }
+
+    // En las pérdidas se muestra la causa estándar y luego el detalle del motivo.
+    private static String causaYMotivo(Movimiento m) {
+        String motivo = m.getMotivo() == null ? "—" : m.getMotivo();
+        return m.getCausaBaja() == null ? motivo : m.getCausaBaja().getDescripcion() + ": " + motivo;
     }
 
     /**
@@ -230,8 +236,15 @@ public class AutorizacionesPanel extends JPanel implements Recargable {
         }
         try {
             controlador.autorizar(m.getIdMovimiento());
-            Tema.info(this, "Movimiento autorizado. El stock se actualizó.");
             recargar();
+            // Con la autorización nace el documento de soporte (acta de baja, comprobante de entrada, etc.)
+            Movimiento autorizado = reportes.movimientoParaDocumento(m.getIdMovimiento());
+            int imprimir = JOptionPane.showConfirmDialog(this, "Movimiento autorizado. El stock se actualizó.\n\n"
+                    + "¿Desea generar el documento de soporte en PDF?\n" + autorizado.tituloDocumento()
+                    + " N.º " + autorizado.numeroDocumento(), "Documento de soporte", JOptionPane.YES_NO_OPTION);
+            if (imprimir == JOptionPane.YES_OPTION) {
+                ExportadorPdf.documento(this, autorizado);
+            }
         } catch (NegocioException ex) {
             Tema.error(this, ex.getMessage());
             recargar();   // por si otro usuario ya lo había resuelto

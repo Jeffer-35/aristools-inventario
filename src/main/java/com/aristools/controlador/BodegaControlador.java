@@ -40,7 +40,8 @@ public class BodegaControlador {
                     Cambios c = new Cambios()
                             .campo("código", anterior.getCodigo(), b.getCodigo())
                             .campo("nombre", anterior.getNombre(), b.getNombre())
-                            .campo("ubicación", anterior.getUbicacion(), b.getUbicacion());
+                            .campo("ubicación", anterior.getUbicacion(), b.getUbicacion())
+                            .campo("cuarentena", anterior.isCuarentena() ? "sí" : "no", b.isCuarentena() ? "sí" : "no");
                     if (c.hayCambios()) {
                         Auditoria.registrar("MODIFICAR_BODEGA", "Bodega " + anterior.getCodigo() + ": " + c);
                     }
