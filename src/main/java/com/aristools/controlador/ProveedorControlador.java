@@ -32,6 +32,9 @@ public class ProveedorControlador {
         if (p.getCorreo() != null && !p.getCorreo().isBlank() && !Validador.correoValido(p.getCorreo())) {
             throw new NegocioException("El correo no tiene un formato válido (ejemplo: ventas@empresa.com).");
         }
+        if (p.getDiasEntrega() != null && (p.getDiasEntrega() < 0 || p.getDiasEntrega() > 180)) {
+            throw new NegocioException("Los días de entrega deben estar entre 0 y 180 (vacío = usa el valor general).");
+        }
         try {
             if (p.getIdProveedor() == 0) {
                 p.setIdProveedor(proveedorDAO.insertar(p));
@@ -48,6 +51,7 @@ public class ProveedorControlador {
                             .campo("teléfono", anterior.getTelefono(), p.getTelefono())
                             .campo("correo", anterior.getCorreo(), p.getCorreo())
                             .campo("dirección", anterior.getDireccion(), p.getDireccion())
+                            .campo("días de entrega", anterior.getDiasEntrega(), p.getDiasEntrega())
                             .campo("estado", anterior.getEstado(), p.getEstado());
                     if (c.hayCambios()) {
                         Auditoria.registrar("MODIFICAR_PROVEEDOR", "Proveedor " + anterior.getRazonSocial() + ": " + c);

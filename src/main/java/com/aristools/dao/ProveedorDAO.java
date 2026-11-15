@@ -8,6 +8,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.sql.Types;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -16,23 +17,25 @@ public class ProveedorDAO {
 
     /** @param inactivos true para incluir los inactivos */
     public List<Proveedor> listar(boolean inactivos) throws SQLException {
-        String sql = "SELECT id_proveedor, nit, razon_social, contacto, telefono, correo, direccion, estado "
+        String sql = "SELECT id_proveedor, nit, razon_social, contacto, telefono, correo, direccion, estado, dias_entrega "
                    + "FROM proveedor " + (inactivos ? "" : "WHERE estado = 'ACTIVO' ") + "ORDER BY razon_social";
         List<Proveedor> lista = new ArrayList<>();
         try (Connection con = ConexionDB.obtener();
              PreparedStatement ps = con.prepareStatement(sql);
              ResultSet rs = ps.executeQuery()) {
             while (rs.next()) {
-                lista.add(new Proveedor(rs.getInt(1), rs.getString(2), rs.getString(3), rs.getString(4),
-                        rs.getString(5), rs.getString(6), rs.getString(7), EstadoRegistro.valueOf(rs.getString(8))));
+                Proveedor p = new Proveedor(rs.getInt(1), rs.getString(2), rs.getString(3), rs.getString(4),
+                        rs.getString(5), rs.getString(6), rs.getString(7), EstadoRegistro.valueOf(rs.getString(8)));
+                p.setDiasEntrega(rs.getObject(9, Integer.class));
+                lista.add(p);
             }
         }
         return lista;
     }
 
     public int insertar(Proveedor p) throws SQLException {
-        String sql = "INSERT INTO proveedor (nit, razon_social, contacto, telefono, correo, direccion, estado) "
-                   + "VALUES (?, ?, ?, ?, ?, ?, ?)";
+        String sql = "INSERT INTO proveedor (nit, razon_social, contacto, telefono, correo, direccion, estado, dias_entrega) "
+                   + "VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
         try (Connection con = ConexionDB.obtener();
              PreparedStatement ps = con.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             llenar(ps, p);
@@ -46,11 +49,11 @@ public class ProveedorDAO {
 
     public void actualizar(Proveedor p) throws SQLException {
         String sql = "UPDATE proveedor SET nit = ?, razon_social = ?, contacto = ?, telefono = ?, correo = ?, "
-                   + "direccion = ?, estado = ? WHERE id_proveedor = ?";
+                   + "direccion = ?, estado = ?, dias_entrega = ? WHERE id_proveedor = ?";
         try (Connection con = ConexionDB.obtener();
              PreparedStatement ps = con.prepareStatement(sql)) {
             llenar(ps, p);
-            ps.setInt(8, p.getIdProveedor());
+            ps.setInt(9, p.getIdProveedor());
             ps.executeUpdate();
         }
     }
@@ -95,5 +98,6 @@ public class ProveedorDAO {
         ps.setString(5, p.getCorreo());
         ps.setString(6, p.getDireccion());
         ps.setString(7, p.getEstado().name());
+        ps.setObject(8, p.getDiasEntrega(), Types.INTEGER);   // null = usa el parámetro general
     }
 }

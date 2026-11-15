@@ -2,7 +2,7 @@
 -- Proyecto Integrador - Segunda Entrega
 -- Sistema de Gestión de Inventarios - Ferretería Aristools
 -- Archivo 1 de 2: aristools.sql
--- Crea la base de datos, las 11 tablas y los datos obligatorios del
+-- Crea la base de datos, las 14 tablas y los datos obligatorios del
 -- sistema (roles, tipos de movimiento y parámetros globales).
 -- Corresponde a la Figura 28 (modelo entidad-relación) y a la Figura 29
 -- (diagrama de datos) del documento. Motor: MySQL 8.x.
@@ -106,9 +106,11 @@ CREATE TABLE proveedor (
     correo        VARCHAR(100) NULL,
     direccion     VARCHAR(150) NULL,
     estado        VARCHAR(10)  NOT NULL DEFAULT 'ACTIVO',
+    dias_entrega  INT          NULL,  -- días que tarda en entregar un pedido; NULL: usa el parámetro general
     CONSTRAINT pk_proveedor PRIMARY KEY (id_proveedor),
     CONSTRAINT uq_proveedor_nit UNIQUE (nit),
-    CONSTRAINT ck_proveedor_estado CHECK (estado IN ('ACTIVO', 'INACTIVO'))
+    CONSTRAINT ck_proveedor_estado CHECK (estado IN ('ACTIVO', 'INACTIVO')),
+    CONSTRAINT ck_proveedor_dias CHECK (dias_entrega IS NULL OR dias_entrega BETWEEN 0 AND 180)
 ) ENGINE = InnoDB;
 
 -- Existencia: cantidad de cada producto en cada bodega (llave compuesta).
@@ -213,6 +215,34 @@ CREATE TABLE parametro (
 -- (sin estos registros la aplicación no puede funcionar)
 -- =====================================================================
 
+-- Orden de compra: pedido que el Jefe de Compras envía al proveedor a partir de
+-- la sugerencia de compra. El número del documento es OC- más el id.
+CREATE TABLE orden_compra (
+    id_orden      INT           NOT NULL AUTO_INCREMENT,
+    id_proveedor  INT           NOT NULL,
+    id_usuario    INT           NOT NULL,             -- quien la genera
+    fecha         DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    total         DECIMAL(14,2) NOT NULL DEFAULT 0,   -- valor estimado al costo de la última compra
+    observacion   VARCHAR(255)  NULL,
+    CONSTRAINT pk_orden_compra PRIMARY KEY (id_orden),
+    CONSTRAINT fk_orden_proveedor FOREIGN KEY (id_proveedor) REFERENCES proveedor (id_proveedor),
+    CONSTRAINT fk_orden_usuario FOREIGN KEY (id_usuario) REFERENCES usuario (id_usuario),
+    CONSTRAINT ck_orden_total CHECK (total >= 0)
+) ENGINE = InnoDB;
+
+-- Productos de cada orden de compra (llave compuesta: un producto una vez por orden)
+CREATE TABLE orden_compra_detalle (
+    id_orden        INT           NOT NULL,
+    id_producto     INT           NOT NULL,
+    cantidad        INT           NOT NULL,
+    costo_unitario  DECIMAL(14,4) NOT NULL DEFAULT 0,
+    CONSTRAINT pk_orden_detalle PRIMARY KEY (id_orden, id_producto),
+    CONSTRAINT fk_detalle_orden FOREIGN KEY (id_orden) REFERENCES orden_compra (id_orden),
+    CONSTRAINT fk_detalle_producto FOREIGN KEY (id_producto) REFERENCES producto (id_producto),
+    CONSTRAINT ck_detalle_cantidad CHECK (cantidad > 0),
+    CONSTRAINT ck_detalle_costo CHECK (costo_unitario >= 0)
+) ENGINE = InnoDB;
+
 -- Roles del sistema (los id quedan: 1 Administrador del Sistema,
 -- 2 Almacenista, 3 Jefe de Compras, 4 Supervisor de Bodega)
 -- Bitácora de auditoría: registro de solo inserción de las acciones sensibles
@@ -267,7 +297,8 @@ INSERT INTO parametro (clave, valor, descripcion) VALUES
 ('stock_maximo_defecto',   '100', 'Umbral máximo para productos sin stock máximo propio'),
 ('dias_vigencia_clave',    '0',   'Días de vigencia de la contraseña (0 = sin vencimiento, recomendación NIST SP 800-63B)'),
 ('minutos_inactividad',    '15',  'Minutos sin actividad para cerrar la sesión (0 = desactivado)'),
-('responsable_revision',   'Supervisor de Bodega', 'Nombre y cargo de quien revisa los reportes impresos (sale como Revisó en los PDF)');
+('responsable_revision',   'Supervisor de Bodega', 'Nombre y cargo de quien revisa los reportes impresos (sale como Revisó en los PDF)'),
+('dias_entrega_defecto',   '5',   'Días de entrega para los proveedores que no tienen los suyos (sugerencia de compra)');
 
 
 -- Nota para la aplicación:

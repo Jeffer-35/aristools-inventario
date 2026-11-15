@@ -182,4 +182,9 @@ UPDATE movimiento_inventario SET causa_baja = 'OTRO'
 WHERE id_movimiento > 0 AND causa_baja IS NULL AND id_tipo_movimiento IN
       (SELECT id_tipo_movimiento FROM tipo_movimiento WHERE nombre IN ('Merma', 'Producto dañado o vencido'));
 
+-- Días de entrega de los proveedores (sugerencia de compra).
+-- Tubos y Accesorios del Pacífico queda sin días: usa el parámetro general.
+UPDATE proveedor SET dias_entrega = 4 WHERE id_proveedor > 0 AND nit = '901456789-2';
+UPDATE proveedor SET dias_entrega = 2 WHERE id_proveedor > 0 AND nit = '900777888-5';
+
 COMMIT;

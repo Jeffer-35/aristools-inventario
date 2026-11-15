@@ -16,5 +16,6 @@ public enum Accion {
     CONSULTAR_EXISTENCIAS,
     VER_REPORTES,
     VER_PERDIDAS,
+    SUGERIR_COMPRA,
     VER_BITACORA
 }

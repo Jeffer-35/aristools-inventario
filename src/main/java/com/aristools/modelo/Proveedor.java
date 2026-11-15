@@ -14,6 +14,7 @@ public class Proveedor {
     private String correo;
     private String direccion;
     private EstadoRegistro estado;
+    private Integer diasEntrega;   // null = usa el parámetro general dias_entrega_defecto
 
     /** Constructor vacío: lo usan los DAO al leer filas de la base de datos. */
     public Proveedor() {
@@ -35,6 +36,22 @@ public class Proveedor {
     /** @return true si el proveedor puede usarse en compras y devoluciones */
     public boolean estaActivo() {
         return estado == EstadoRegistro.ACTIVO;
+    }
+
+    /**
+     * Días que tarda el proveedor en entregar un pedido. Si no los tiene
+     * definidos se usan los del parámetro general.
+     */
+    public int diasEntregaEfectivos(int diasPorDefecto) {
+        return diasEntrega == null ? diasPorDefecto : diasEntrega;
+    }
+
+    public Integer getDiasEntrega() {
+        return diasEntrega;
+    }
+
+    public void setDiasEntrega(Integer diasEntrega) {
+        this.diasEntrega = diasEntrega;
     }
 
     // ----- get / set de cada atributo -----

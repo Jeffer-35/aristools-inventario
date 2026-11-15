@@ -22,7 +22,7 @@ cd aristools-inventario
 mvn test
 ```
 
-Resultado esperado: `Tests run: 61, Failures: 0, Errors: 0` y `BUILD SUCCESS`, en cualquier computador con JDK 17 y Maven, sin instalar MySQL y sin contraseñas.
+Resultado esperado: `Tests run: 65, Failures: 0, Errors: 0` y `BUILD SUCCESS`, en cualquier computador con JDK 17 y Maven, sin instalar MySQL y sin contraseñas.
 
 ---
 
@@ -36,7 +36,7 @@ Resultado esperado: `Tests run: 61, Failures: 0, Errors: 0` y `BUILD SUCCESS`, e
 | RF-002 | Gestionar usuarios y roles | Administrador |
 | RF-003 | Gestionar productos y categorías | Administrador |
 | RF-004 | Gestionar bodegas | Administrador |
-| RF-005 | Gestionar proveedores | Jefe de Compras / Administrador |
+| RF-005 | Gestionar proveedores (con sus días de entrega) | Jefe de Compras / Administrador |
 | RF-006 | Registrar entradas de mercancía (compra, devolución); la compra exige el número de la factura y su costo unitario, que el sistema propone con el de la última compra | Almacenista |
 | RF-007 | Registrar salidas (consumo interno, merma, dañado o vencido, devolución a proveedor); las pérdidas exigen causa estándar y motivo | Almacenista |
 | RF-008 | Registrar transferencias entre bodegas | Almacenista |
@@ -76,6 +76,22 @@ Además de las unidades, el kardex lleva el valor en pesos del inventario:
 | 4 | Supervisor o Administrador | Consulta el **reporte de pérdidas** del período, con el valor perdido en pesos y totales por causa y por bodega |
 
 Las causas son una lista fija: vencido, roto o golpeado en bodega, daño en transporte, humedad, defecto de fábrica, faltante sin explicación (la asigna el sistema a los ajustes negativos del conteo) y otro. El valor de cada pérdida es la cantidad por el costo promedio del producto en el momento de la baja.
+
+### Sugerencia de compra y orden de compra
+
+La opción *Sugerencia de compra* (Jefe de Compras y Administrador) dice qué pedir y cuánto:
+
+| Dato | Cómo se obtiene |
+|---|---|
+| Consumo diario | Unidades que salieron en los últimos 90 días ÷ 90 (consumo interno, mermas, daños y faltantes; no cuentan las transferencias ni las devoluciones a proveedor) |
+| Días de entrega | Los del proveedor de la última compra; si no tiene, el parámetro general *Días de entrega por defecto* |
+| Punto de reorden | Consumo diario × días de entrega + stock mínimo (colchón de seguridad) |
+| ¿Hay que pedir? | Sí, cuando el stock disponible (sin contar la cuarentena) llega al punto de reorden |
+| Cantidad sugerida | Stock máximo − stock actual |
+
+**Ejemplo:** salen 2 tornillos por día, el proveedor tarda 5 días y el mínimo es 10: el punto de reorden es 2 × 5 + 10 = 20. Si quedan 18 y el máximo es 100, se sugiere pedir 82.
+
+La columna *Pedir* se puede cambiar. Con lo que se decide pedir se genera la **orden de compra** para un proveedor: se guarda con su número (`OC-000001`) y se imprime en PDF con los datos del proveedor, los productos, el costo de referencia y el total estimado. La orden es solo el pedido: el stock cambia cuando llega la mercancía y se registra la compra con la factura.
 
 ### Documentos de soporte
 
@@ -181,20 +197,21 @@ aristools-inventario/
 │   ├── actualizar_bd_v4.sql     #   v4: bitácora de auditoría
 │   ├── actualizar_bd_v5.sql     #   v5: kardex valorizado y responsable de revisión
 │   ├── actualizar_bd_v6.sql     #   v6: causas de baja y bodega de cuarentena
+│   ├── actualizar_bd_v7.sql     #   v7: días de entrega y órdenes de compra
 │   ├── respaldar_bd.bat         # Respaldo (RNF-007)
 │   └── restaurar_bd.bat         # Restauración (RNF-007)
 ├── src/main/java/com/aristools/
 │   ├── Main.java                # Punto de entrada del programa
 │   ├── conexion/    ConexionDB
-│   ├── modelo/      28 clases (entidades, Movimiento y sus 4 subclases, enumeraciones y auxiliares)
-│   ├── dao/         13 DAO
+│   ├── modelo/      31 clases (entidades, Movimiento y sus 4 subclases, enumeraciones y auxiliares)
+│   ├── dao/         14 DAO
 │   ├── seguridad/   Accion, Permisos, PasswordUtil, Sesion
-│   ├── controlador/ 15 clases (controladores, GestorInventario y Auditoria)
+│   ├── controlador/ 16 clases (controladores, GestorInventario y Auditoria)
 │   ├── util/        NegocioException, Validador, Cambios, Formato, ReportePdf
-│   └── vista/       33 clases (ventanas, paneles y diálogos Swing)
+│   └── vista/       34 clases (ventanas, paneles y diálogos Swing)
 ├── src/main/resources/
 │   └── db.properties.ejemplo    # Plantilla de la conexión a MySQL (copiar como db.properties)
-├── src/test/java/com/aristools/ # 61 pruebas JUnit
+├── src/test/java/com/aristools/ # 65 pruebas JUnit
 ├── src/test/resources/
 │   └── db-pruebas.properties    # Conexión de las pruebas: H2 en memoria
 ├── ejecutar_aristools.bat       # Lanzador del .jar (sin ventana de consola)
@@ -204,16 +221,16 @@ aristools-inventario/
 
 | Paquete | Clases |
 |---|---|
-| `modelo` | Rol, Usuario, Categoria, Producto, Bodega, Proveedor, Existencia, TipoMovimiento, Alerta, Parametro, RegistroBitacora, **Movimiento** (abstracta), Entrada, Salida, Transferencia, Ajuste, EstadoUsuario, EstadoRegistro, EstadoMovimiento, EstadoAlerta, TipoAlerta, Naturaleza, CausaBaja, CambioStock, TotalPerdida, LineaKardex, LineaConteo, FiltroMovimiento |
-| `dao` | UsuarioDAO, RolDAO, CategoriaDAO, ProductoDAO, BodegaDAO, ProveedorDAO, TipoMovimientoDAO, ParametroDAO, ExistenciaDAO, MovimientoDAO, AlertaDAO, ReporteDAO, BitacoraDAO |
-| `controlador` | LoginControlador, GestorInventario, MovimientoControlador, AutorizacionControlador, AlertaControlador, ConteoControlador, ReporteControlador, PanelControlador, UsuarioControlador, ProductoControlador, BodegaControlador, ProveedorControlador, ParametroControlador, BitacoraControlador, Auditoria |
-| `vista` | **Ventanas y diálogos:** LoginVista, PrincipalVista, CambiarClaveDialogo, PrimerAdminDialogo · **Pantallas:** InicioPanel, CatalogosPanel, ProductosPanel, CategoriasPanel, BodegasPanel, ProveedoresPanel, UsuariosPanel, MovimientosPanel, EntradaPanel, SalidaPanel, TransferenciaPanel, ConteoPanel, AutorizacionesPanel, ExistenciasPanel, ReportesPanel, ParametrosPanel, BitacoraPanel · **Base y apoyo:** PanelCatalogo y PanelMovimiento (abstractas), Recargable (interfaz), PanelDesplazable, PanelEnConstruccion, BarraFiltros, CampoFecha, ExportadorCsv, ExportadorPdf, MonitorInactividad, MostrarClave, Tema |
+| `modelo` | Rol, Usuario, Categoria, Producto, Bodega, Proveedor, Existencia, TipoMovimiento, Alerta, Parametro, RegistroBitacora, **Movimiento** (abstracta), Entrada, Salida, Transferencia, Ajuste, EstadoUsuario, EstadoRegistro, EstadoMovimiento, EstadoAlerta, TipoAlerta, Naturaleza, CausaBaja, CambioStock, TotalPerdida, LineaKardex, LineaConteo, FiltroMovimiento, SugerenciaCompra, OrdenCompra, LineaOrdenCompra |
+| `dao` | UsuarioDAO, RolDAO, CategoriaDAO, ProductoDAO, BodegaDAO, ProveedorDAO, TipoMovimientoDAO, ParametroDAO, ExistenciaDAO, MovimientoDAO, AlertaDAO, ReporteDAO, BitacoraDAO, CompraDAO |
+| `controlador` | LoginControlador, GestorInventario, MovimientoControlador, AutorizacionControlador, AlertaControlador, ConteoControlador, ReporteControlador, PanelControlador, UsuarioControlador, ProductoControlador, BodegaControlador, ProveedorControlador, ParametroControlador, BitacoraControlador, CompraControlador, Auditoria |
+| `vista` | **Ventanas y diálogos:** LoginVista, PrincipalVista, CambiarClaveDialogo, PrimerAdminDialogo · **Pantallas:** InicioPanel, CatalogosPanel, ProductosPanel, CategoriasPanel, BodegasPanel, ProveedoresPanel, UsuariosPanel, MovimientosPanel, EntradaPanel, SalidaPanel, TransferenciaPanel, ConteoPanel, AutorizacionesPanel, ExistenciasPanel, ReportesPanel, SugerenciaCompraPanel, ParametrosPanel, BitacoraPanel · **Base y apoyo:** PanelCatalogo y PanelMovimiento (abstractas), Recargable (interfaz), PanelDesplazable, PanelEnConstruccion, BarraFiltros, CampoFecha, ExportadorCsv, ExportadorPdf, MonitorInactividad, MostrarClave, Tema |
 
 ---
 
 ## 6. Base de datos
 
-Esquema `aristools` (InnoDB, utf8mb4) con **12 tablas**, 12 llaves primarias, **14 llaves foráneas**, restricciones `UNIQUE` y `CHECK`, 5 índices y 2 disparadores.
+Esquema `aristools` (InnoDB, utf8mb4) con **14 tablas**, 14 llaves primarias, **18 llaves foráneas**, restricciones `UNIQUE` y `CHECK`, 5 índices y 2 disparadores.
 
 | Grupo | Tablas |
 |---|---|
@@ -221,11 +238,12 @@ Esquema `aristools` (InnoDB, utf8mb4) con **12 tablas**, 12 llaves primarias, **
 | Catálogos | `categoria`, `producto`, `bodega`, `proveedor`, `tipo_movimiento` |
 | Operación | `existencia` (producto × bodega, llave compuesta), `movimiento_inventario` |
 | Control | `alerta`, `parametro` |
+| Compras | `orden_compra`, `orden_compra_detalle` (llave compuesta) |
 | Auditoría | `bitacora` (solo inserción, protegida por 2 disparadores) |
 
 Los valores de estado se guardan en mayúscula (`ACTIVO`, `PENDIENTE`, `AUTORIZADO`…) porque coinciden con las enumeraciones de Java. El stock no se guarda en `producto`: es la suma de `existencia` y solo cambia con movimientos autorizados. Para el kardex valorizado, `producto` guarda el `costo_promedio` y cada movimiento su `costo_unitario`; los datos de prueba se valoran al costo de referencia. Las pérdidas guardan su `causa_baja` y la bodega de cuarentena se marca con `es_cuarentena`.
 
-**Datos obligatorios:** 4 roles, 9 tipos de movimiento (Compra, Devolución, Consumo interno, Merma, Producto dañado o vencido, Devolución a proveedor, Transferencia, Ajuste positivo y Ajuste negativo) y 6 parámetros (nombre del establecimiento, stock mínimo por defecto 10, stock máximo por defecto 100, días de vigencia de la contraseña 0, minutos de inactividad 15 y responsable de revisión de los reportes).
+**Datos obligatorios:** 4 roles, 9 tipos de movimiento (Compra, Devolución, Consumo interno, Merma, Producto dañado o vencido, Devolución a proveedor, Transferencia, Ajuste positivo y Ajuste negativo) y 7 parámetros (nombre del establecimiento, stock mínimo por defecto 10, stock máximo por defecto 100, días de vigencia de la contraseña 0, minutos de inactividad 15, responsable de revisión de los reportes y días de entrega por defecto 5).
 
 **Datos de prueba:** 6 usuarios, 6 categorías, 22 productos (21 activos), 5 bodegas (4 activas, una de cuarentena), 5 proveedores (4 activos), 54 movimientos (6 pendientes de autorización) y 6 alertas activas.
 
@@ -248,6 +266,7 @@ En MySQL Workbench, ejecutar en este orden:
 | `actualizar_bd_v4.sql` | Bitácora de auditoría: tabla `bitacora` y 2 disparadores |
 | `actualizar_bd_v5.sql` | Kardex valorizado: `costo_promedio` en `producto`, `costo_unitario` en `movimiento_inventario` y parámetro `responsable_revision` |
 | `actualizar_bd_v6.sql` | Averías: `causa_baja` en `movimiento_inventario`, `es_cuarentena` en `bodega` y la bodega de cuarentena |
+| `actualizar_bd_v7.sql` | Compras: `dias_entrega` en `proveedor`, tablas `orden_compra` y `orden_compra_detalle` y parámetro `dias_entrega_defecto` |
 
 Cada integrante ejecuta los scripts en su propio MySQL: GitHub comparte el código, no la base de datos.
 
@@ -307,7 +326,7 @@ Contraseña de todos: `Aristools2026*`
 
 ---
 
-## 8. Pruebas automatizadas (61)
+## 8. Pruebas automatizadas (65)
 
 ```
 mvn test
@@ -331,10 +350,11 @@ Las pruebas usan **H2**, una base de datos en memoria que Maven descarga sola (l
 
 | Clase | Pruebas | Qué verifica |
 |---|---|---|
-| `BaseDePruebasTest` | 3 | Las pruebas usan H2 y no MySQL; el script real crea las 12 tablas; el lector separa bien las sentencias de un script |
+| `BaseDePruebasTest` | 3 | Las pruebas usan H2 y no MySQL; el script real crea las tablas; el lector separa bien las sentencias de un script |
 | `ConexionDBTest` | 2 | `ConexionDB` entrega una conexión válida; existen los 4 roles y los 9 tipos de movimiento |
-| `ModeloTest` | 21 | Herencia y polimorfismo, validaciones (cantidad, motivo y causa, proveedor, número de factura y costo en compras, costo inusual), costo promedio ponderado, reglas de la cuarentena, documentos de soporte, totales de pérdidas, segregación de funciones, bloqueo al tercer intento, umbrales y conteo físico |
+| `ModeloTest` | 23 | Herencia y polimorfismo, validaciones (cantidad, motivo y causa, proveedor, número de factura y costo en compras, costo inusual), costo promedio ponderado, reglas de la cuarentena, documentos de soporte, totales de pérdidas, sugerencia de compra, orden de compra, segregación de funciones, bloqueo al tercer intento, umbrales y conteo físico |
 | `PerdidasTest` | 2 | Flujo completo de una avería: cuarentena, baja con causa, autorización, acta de baja y reporte de pérdidas en pesos; el reporte solo lo ven Supervisor y Administrador |
+| `CompraTest` | 2 | Sugerencia de la pintura bajo su mínimo, orden de compra guardada con su total; la sugerencia solo la usan Jefe de Compras y Administrador |
 | `KardexValorizadoTest` | 1 | Flujo completo: costo sugerido de la última compra, compra registrada y autorizada por otro usuario, promedio recalculado, salida valorada y kardex en pesos |
 | `FormatoTest` | 3 | Forma de mostrar y de leer valores en pesos |
 | `ReportePdfTest` | 3 | El reporte trae encabezado, datos, resumen y responsables; el documento de soporte trae número, datos y responsables; un reporte largo ocupa varias páginas |
@@ -374,10 +394,11 @@ Ambos detectan automáticamente la carpeta de MySQL Server 8.x o 9.x en `C:\Prog
 | 12 | Pruebas sin depender de MySQL (H2 en memoria) | ✅ |
 | 13 | Kardex valorizado (costo promedio ponderado) y reportes en PDF | ✅ |
 | 14 | Averías con cuarentena, causas de baja, reporte de pérdidas y documentos de soporte | ✅ |
+| 15 | Sugerencia de compra y orden de compra en PDF | ✅ |
 
 ### Mejoras planeadas para la entrega final
 
-Sugerencia de compra, clasificación ABC con conteo cíclico, control de vencimientos (FEFO), control mensual, tablero de indicadores (KPI) y respaldo automático.
+Clasificación ABC con conteo cíclico, control de vencimientos (FEFO), control mensual, tablero de indicadores (KPI) y respaldo automático.
 
 **Trabajo futuro (fuera del alcance):** base de datos en red o en la nube, control de stock por lote y lector de código de barras.
 

@@ -149,6 +149,42 @@ class ModeloTest {
         assertEquals(0, new BigDecimal("50000").compareTo(totales.get(1).getValor()));
     }
 
+    // ----- sugerencia de compra -----
+
+    @Test
+    void laSugerenciaCalculaElPuntoDeReordenYLaCantidadAPedir() {
+        // 180 unidades en 90 días = 2 por día; el proveedor tarda 5 días; mínimo 10 y máximo 100
+        SugerenciaCompra s = new SugerenciaCompra(martillo, null, 18, 180, 90, 5, 10, 100, new BigDecimal("2000"));
+        assertEquals(0, new BigDecimal("2.00").compareTo(s.consumoDiario()));
+        assertEquals(20, s.puntoReorden(), "2 x 5 + 10");
+        assertTrue(s.hayQuePedir(), "quedan 18 y el punto de reorden es 20");
+        assertEquals(82, s.cantidadSugerida(), "100 - 18");
+        assertEquals(0, new BigDecimal("164000").compareTo(s.valorEstimado()));
+
+        SugerenciaCompra suficiente = new SugerenciaCompra(martillo, null, 60, 180, 90, 5, 10, 100, BigDecimal.ONE);
+        assertFalse(suficiente.hayQuePedir());
+        assertEquals(0, suficiente.cantidadSugerida(), "con 60 unidades todavía no hay que pedir");
+    }
+
+    @Test
+    void laOrdenDeCompraExigeProveedorActivoYCantidadesValidas() {
+        Proveedor activo = new Proveedor(1, "900123456-1", "Distribuidora", "", "", "", "", EstadoRegistro.ACTIVO);
+        Proveedor inactivo = new Proveedor(2, "900777888-5", "Constructor", "", "", "", "", EstadoRegistro.INACTIVO);
+        LineaOrdenCompra linea = new LineaOrdenCompra(martillo, 10, new BigDecimal("25000"));
+        assertThrows(NegocioException.class, () -> new OrdenCompra(inactivo, registra, List.of(linea)).validar());
+        assertThrows(NegocioException.class, () -> new OrdenCompra(activo, registra, List.of()).validar());
+        assertThrows(NegocioException.class, () -> new OrdenCompra(activo, registra,
+                List.of(linea, new LineaOrdenCompra(martillo, 5, BigDecimal.ONE))).validar(), "producto repetido");
+        OrdenCompra orden = new OrdenCompra(activo, registra, List.of(linea));
+        orden.validar();
+        orden.setIdOrden(3);
+        assertEquals("OC-000003", orden.numero());
+        assertEquals(0, new BigDecimal("250000").compareTo(orden.total()));
+        assertEquals(7, activo.diasEntregaEfectivos(7), "sin días propios usa los generales");
+        activo.setDiasEntrega(3);
+        assertEquals(3, activo.diasEntregaEfectivos(7));
+    }
+
     private Movimiento perdida(TipoMovimiento tipo, int cantidad, String costo, CausaBaja causa) {
         Salida s = new Salida(martillo, tipo, registra, cantidad, principal, null);
         s.setCostoUnitario(new BigDecimal(costo));

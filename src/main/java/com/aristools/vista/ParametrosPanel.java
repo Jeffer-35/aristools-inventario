@@ -31,6 +31,7 @@ public class ParametrosPanel extends JPanel implements Recargable {
     private final JTextField txtVigencia = new JTextField();
     private final JTextField txtInactividad = new JTextField();
     private final JTextField txtRevision = new JTextField();
+    private final JTextField txtDiasEntrega = new JTextField();
 
     public ParametrosPanel() {
         setLayout(new BorderLayout(0, 18));
@@ -55,6 +56,7 @@ public class ParametrosPanel extends JPanel implements Recargable {
         fila = agregar(tarjeta, fila, "Vigencia de la contraseña (días)", txtVigencia);
         fila = agregar(tarjeta, fila, "Cierre por inactividad (minutos)", txtInactividad);
         fila = agregar(tarjeta, fila, "Responsable de revisión (PDF)", txtRevision);
+        fila = agregar(tarjeta, fila, "Días de entrega por defecto", txtDiasEntrega);
         txtRevision.putClientProperty("JTextField.placeholderText", "Nombre y cargo de quien revisa los reportes");
 
         GridBagConstraints c = new GridBagConstraints();
@@ -69,7 +71,8 @@ public class ParametrosPanel extends JPanel implements Recargable {
                 + "vence (recomendación NIST SP 800-63B); escriba 15 o 30 si la política de la empresa exige "
                 + "cambiarla. Con 0 minutos no se cierra la sesión por inactividad.<br><br><b>Reportes PDF:</b> el "
                 + "responsable de revisión aparece como <i>Revisó</i> en los reportes impresos; <i>Elaboró</i> "
-                + "es el usuario que genera el reporte.</body></html>");
+                + "es el usuario que genera el reporte.<br><br><b>Compras:</b> los días de entrega por defecto se usan "
+                + "en la sugerencia de compra para los proveedores que no tienen sus propios días.</body></html>");
         nota.setFont(Tema.NORMAL.deriveFont(12f));
         nota.setForeground(Tema.TEXTO_SUAVE);
         tarjeta.add(nota, c);
@@ -111,6 +114,7 @@ public class ParametrosPanel extends JPanel implements Recargable {
         txtVigencia.setText("0");        // valores si la base aún no tiene estos parámetros
         txtInactividad.setText("15");
         txtRevision.setText("Supervisor de Bodega");
+        txtDiasEntrega.setText("5");
         try {
             for (Parametro p : controlador.listar()) {
                 switch (p.getClave()) {
@@ -120,6 +124,7 @@ public class ParametrosPanel extends JPanel implements Recargable {
                     case "dias_vigencia_clave" -> txtVigencia.setText(p.getValor());
                     case "minutos_inactividad" -> txtInactividad.setText(p.getValor());
                     case ParametroControlador.RESPONSABLE_REVISION -> txtRevision.setText(p.getValor());
+                    case "dias_entrega_defecto" -> txtDiasEntrega.setText(p.getValor());
                     default -> { }
                 }
             }
@@ -135,7 +140,7 @@ public class ParametrosPanel extends JPanel implements Recargable {
                     entero(txtMinimo.getText(), "stock mínimo por defecto"),
                     entero(txtMaximo.getText(), "stock máximo por defecto"),
                     entero(txtVigencia.getText(), "vigencia de la contraseña"),
-                    minutos, txtRevision.getText());
+                    minutos, txtRevision.getText(), entero(txtDiasEntrega.getText(), "días de entrega por defecto"));
             MonitorInactividad.aplicar(minutos);   // el nuevo tiempo rige desde ya, sin cerrar sesión
             Tema.info(this, "Configuración guardada correctamente.");
             recargar();

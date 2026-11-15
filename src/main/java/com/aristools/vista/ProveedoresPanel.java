@@ -19,6 +19,7 @@ public class ProveedoresPanel extends PanelCatalogo<Proveedor> {
     private final JTextField txtTelefono = new JTextField();
     private final JTextField txtCorreo = new JTextField();
     private final JTextField txtDireccion = new JTextField();
+    private final JTextField txtDiasEntrega = new JTextField();
 
     public ProveedoresPanel() {
         super("Proveedores", "Empresas que entregan mercancía o reciben devoluciones.");
@@ -27,18 +28,18 @@ public class ProveedoresPanel extends PanelCatalogo<Proveedor> {
 
     @Override
     protected String[] columnas() {
-        return new String[]{"NIT", "Razón social", "Contacto", "Teléfono", "Correo", "Estado"};
+        return new String[]{"NIT", "Razón social", "Contacto", "Teléfono", "Correo", "Días entrega", "Estado"};
     }
 
     @Override
     protected int[] anchosColumnas() {
-        return new int[]{100, 220, 130, 100, 180, 80};
+        return new int[]{100, 220, 130, 100, 180, 90, 80};
     }
 
     @Override
     protected Object[] fila(Proveedor p) {
         return new Object[]{p.getNit(), p.getRazonSocial(), p.getContacto(), p.getTelefono(),
-            p.getCorreo(), p.getEstado()};
+            p.getCorreo(), p.getDiasEntrega() == null ? "General" : p.getDiasEntrega(), p.getEstado()};
     }
 
     @Override
@@ -55,8 +56,11 @@ public class ProveedoresPanel extends PanelCatalogo<Proveedor> {
         agregarCampo("Teléfono", txtTelefono);
         agregarCampo("Correo", txtCorreo);
         agregarCampo("Dirección", txtDireccion);
+        agregarCampo("Días de entrega", txtDiasEntrega);
+        txtDiasEntrega.putClientProperty("JTextField.placeholderText", "Vacío = usa el valor general de Configuración");
         agregarNota("Los datos de contacto se tratan conforme a la Ley 1581 de 2012 de protección de "
-                + "datos personales. Un proveedor con movimientos pendientes no se puede inactivar.");
+                + "datos personales. Un proveedor con movimientos pendientes no se puede inactivar. Los días de entrega "
+                + "se usan en la sugerencia de compra para saber cuándo pedir.");
     }
 
     @Override
@@ -67,11 +71,12 @@ public class ProveedoresPanel extends PanelCatalogo<Proveedor> {
         txtTelefono.setText(p.getTelefono());
         txtCorreo.setText(p.getCorreo());
         txtDireccion.setText(p.getDireccion());
+        txtDiasEntrega.setText(p.getDiasEntrega() == null ? "" : String.valueOf(p.getDiasEntrega()));
     }
 
     @Override
     protected void limpiar() {
-        for (JTextField t : new JTextField[]{txtNit, txtRazonSocial, txtContacto, txtTelefono, txtCorreo, txtDireccion}) {
+        for (JTextField t : new JTextField[]{txtNit, txtRazonSocial, txtContacto, txtTelefono, txtCorreo, txtDireccion, txtDiasEntrega}) {
             t.setText("");
         }
     }
@@ -82,6 +87,7 @@ public class ProveedoresPanel extends PanelCatalogo<Proveedor> {
                 txtNit.getText().trim(), txtRazonSocial.getText().trim(), txtContacto.getText().trim(),
                 txtTelefono.getText().trim(), txtCorreo.getText().trim(), txtDireccion.getText().trim(),
                 seleccionado == null ? EstadoRegistro.ACTIVO : seleccionado.getEstado());
+        p.setDiasEntrega(enteroOpcional(txtDiasEntrega.getText(), "días de entrega"));
         controlador.guardar(p);
     }
 

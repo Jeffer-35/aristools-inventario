@@ -91,3 +91,7 @@ WHERE id_movimiento > 0 AND causa_baja IS NULL AND id_tipo_movimiento IN
 UPDATE movimiento_inventario SET causa_baja = 'OTRO'
 WHERE id_movimiento > 0 AND causa_baja IS NULL AND id_tipo_movimiento IN
       (SELECT id_tipo_movimiento FROM tipo_movimiento WHERE nombre IN ('Merma', 'Producto dañado o vencido'));
+
+-- Días de entrega de los proveedores (sugerencia de compra)
+UPDATE proveedor SET dias_entrega = 3 WHERE id_proveedor > 0 AND nit = '900123456-1';
+UPDATE proveedor SET dias_entrega = 7 WHERE id_proveedor > 0 AND nit = '900654321-2';

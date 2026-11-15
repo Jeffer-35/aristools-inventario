@@ -3,7 +3,9 @@ package com.aristools.vista;
 import com.aristools.controlador.ParametroControlador;
 import com.aristools.modelo.CambioStock;
 import com.aristools.modelo.Entrada;
+import com.aristools.modelo.LineaOrdenCompra;
 import com.aristools.modelo.Movimiento;
+import com.aristools.modelo.OrdenCompra;
 import com.aristools.modelo.Proveedor;
 import com.aristools.modelo.Salida;
 import com.aristools.modelo.Usuario;
@@ -107,6 +109,48 @@ public final class ExportadorPdf {
             throw new NegocioException(errorAlGuardar());
         }
         abrir(padre, archivo);
+    }
+
+    /**
+     * Orden de compra para enviar al proveedor: sus datos, los productos con
+     * cantidad y costo de referencia, y el total estimado.
+     */
+    public static void ordenCompra(Component padre, OrdenCompra orden) {
+        File archivo = elegirArchivo(padre, orden.numero());
+        if (archivo == null) {
+            return;
+        }
+        Proveedor p = orden.getProveedor();
+        List<String> detalles = new ArrayList<>();
+        detalles.add("Proveedor: " + p.getRazonSocial() + "   ·   NIT " + p.getNit());
+        detalles.add("Contacto: " + texto(p.getContacto()) + "   ·   Teléfono: " + texto(p.getTelefono())
+                + "   ·   Correo: " + texto(p.getCorreo()));
+        detalles.add("Dirección: " + texto(p.getDireccion()) + "   ·   Fecha de la orden: " + fecha(orden.getFecha()));
+        if (orden.getObservacion() != null) {
+            detalles.add("Observación: " + orden.getObservacion());
+        }
+        String[] columnas = {"Código", "Producto", "Unidad", "Cantidad", "Costo unit. (ref.)", "Subtotal"};
+        List<String[]> filas = new ArrayList<>();
+        for (LineaOrdenCompra l : orden.getLineas()) {
+            filas.add(new String[]{l.getProducto().getCodigo(), l.getProducto().getNombre(),
+                texto(l.getProducto().getUnidadMedida()), String.valueOf(l.getCantidad()),
+                Formato.pesos(l.getCostoUnitario()), Formato.pesos(l.subtotal())});
+        }
+        ParametroControlador parametros = new ParametroControlador();
+        try (OutputStream salida = new FileOutputStream(archivo)) {
+            ReportePdf.generar(salida, parametros.valor("nombre_establecimiento", "Ferretería Aristools"),
+                    "Orden de compra N.º " + orden.numero(), detalles, columnas, filas,
+                    "Total estimado: " + Formato.pesos(orden.total()) + "   ·   Los costos son de referencia (última "
+                    + "compra); el valor final es el de la factura del proveedor.",
+                    nombreYRol(orden.getUsuario()), parametros.valor(ParametroControlador.RESPONSABLE_REVISION, ""));
+        } catch (IOException | DocumentException e) {
+            throw new NegocioException(errorAlGuardar());
+        }
+        abrir(padre, archivo);
+    }
+
+    private static String texto(String valor) {
+        return valor == null || valor.isBlank() ? "—" : valor;
     }
 
     // Datos del movimiento que se imprimen en el documento; los vacíos no se muestran.

@@ -78,9 +78,10 @@ public class ParametroControlador {
      * @param diasVigencia días de vigencia de la contraseña (0 = no vence)
      * @param minutosInactividad minutos sin actividad para cerrar la sesión (0 = desactivado)
      * @param responsableRevision nombre y cargo que sale como "Revisó" en los reportes PDF
+     * @param diasEntregaDefecto días de entrega de los proveedores que no tienen los suyos
      */
     public void guardar(String nombre, int minimo, int maximo, int diasVigencia, int minutosInactividad,
-                        String responsableRevision) {
+                        String responsableRevision, int diasEntregaDefecto) {
         Sesion.exigir(Accion.CONFIGURAR_PARAMETROS);
         Validador.textoObligatorio(nombre, "nombre del establecimiento");
         if (minimo < 0 || maximo < 0) {
@@ -96,6 +97,9 @@ public class ParametroControlador {
             throw new NegocioException("El cierre por inactividad debe estar entre 0 y 240 minutos (0 = desactivado).");
         }
         Validador.textoObligatorio(responsableRevision, "responsable de revisión");
+        if (diasEntregaDefecto < 0 || diasEntregaDefecto > 180) {
+            throw new NegocioException("Los días de entrega por defecto deben estar entre 0 y 180.");
+        }
         if (responsableRevision.trim().length() > 100) {
             throw new NegocioException("El responsable de revisión no puede tener más de 100 caracteres.");
         }
@@ -113,6 +117,8 @@ public class ParametroControlador {
                         "Minutos sin actividad para cerrar la sesión (0 = desactivado)");
                 parametroDAO.guardar(con, RESPONSABLE_REVISION, responsableRevision.trim(),
                         "Nombre y cargo de quien revisa los reportes impresos (sale como Revisó en los PDF)");
+                parametroDAO.guardar(con, "dias_entrega_defecto", String.valueOf(diasEntregaDefecto),
+                        "Días de entrega para los proveedores que no tienen los suyos (sugerencia de compra)");
                 con.commit();
                 Cambios c = new Cambios()
                         .campo("nombre del establecimiento", antes.get("nombre_establecimiento"), nombre.trim())
@@ -120,7 +126,8 @@ public class ParametroControlador {
                         .campo("stock máximo por defecto", antes.get("stock_maximo_defecto"), maximo)
                         .campo("vigencia de la contraseña (días)", antes.get("dias_vigencia_clave"), diasVigencia)
                         .campo("cierre por inactividad (minutos)", antes.get("minutos_inactividad"), minutosInactividad)
-                        .campo("responsable de revisión", antes.get(RESPONSABLE_REVISION), responsableRevision.trim());
+                        .campo("responsable de revisión", antes.get(RESPONSABLE_REVISION), responsableRevision.trim())
+                        .campo("días de entrega por defecto", antes.get("dias_entrega_defecto"), diasEntregaDefecto);
                 if (c.hayCambios()) {
                     Auditoria.registrar("CAMBIO_PARAMETROS", c.toString());
                 }
