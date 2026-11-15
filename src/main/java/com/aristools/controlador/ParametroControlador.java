@@ -20,6 +20,9 @@ import java.util.stream.Collectors;
  */
 public class ParametroControlador {
 
+    /** Clave del parámetro con el nombre y cargo de quien revisa los reportes impresos ("Revisó"). */
+    public static final String RESPONSABLE_REVISION = "responsable_revision";
+
     private final ParametroDAO parametroDAO = new ParametroDAO();
 
     public List<Parametro> listar() {
@@ -28,6 +31,19 @@ public class ParametroControlador {
         } catch (SQLException e) {
             throw NegocioException.deBaseDeDatos(e);
         }
+    }
+
+    /**
+     * Valor actual de un parámetro.
+     * @param porDefecto lo que se devuelve si la base todavía no tiene ese parámetro
+     */
+    public String valor(String clave, String porDefecto) {
+        for (Parametro p : listar()) {
+            if (p.getClave().equals(clave)) {
+                return p.getValor();
+            }
+        }
+        return porDefecto;
     }
 
     /** Guarda los tres parámetros juntos en una transacción. */
@@ -57,11 +73,14 @@ public class ParametroControlador {
     }
 
     /**
-     * Guarda los parámetros generales y los de seguridad en una transacción.
+     * Guarda los parámetros generales, los de seguridad y el responsable de
+     * revisión de los reportes en una transacción.
      * @param diasVigencia días de vigencia de la contraseña (0 = no vence)
      * @param minutosInactividad minutos sin actividad para cerrar la sesión (0 = desactivado)
+     * @param responsableRevision nombre y cargo que sale como "Revisó" en los reportes PDF
      */
-    public void guardar(String nombre, int minimo, int maximo, int diasVigencia, int minutosInactividad) {
+    public void guardar(String nombre, int minimo, int maximo, int diasVigencia, int minutosInactividad,
+                        String responsableRevision) {
         Sesion.exigir(Accion.CONFIGURAR_PARAMETROS);
         Validador.textoObligatorio(nombre, "nombre del establecimiento");
         if (minimo < 0 || maximo < 0) {
@@ -76,6 +95,10 @@ public class ParametroControlador {
         if (minutosInactividad < 0 || minutosInactividad > 240) {
             throw new NegocioException("El cierre por inactividad debe estar entre 0 y 240 minutos (0 = desactivado).");
         }
+        Validador.textoObligatorio(responsableRevision, "responsable de revisión");
+        if (responsableRevision.trim().length() > 100) {
+            throw new NegocioException("El responsable de revisión no puede tener más de 100 caracteres.");
+        }
         Map<String, String> antes = listar().stream()
                 .collect(Collectors.toMap(Parametro::getClave, Parametro::getValor, (a, b) -> a));
         try (Connection con = ConexionDB.obtener()) {
@@ -88,13 +111,16 @@ public class ParametroControlador {
                         "Días de vigencia de la contraseña (0 = sin vencimiento, recomendación NIST SP 800-63B)");
                 parametroDAO.guardar(con, "minutos_inactividad", String.valueOf(minutosInactividad),
                         "Minutos sin actividad para cerrar la sesión (0 = desactivado)");
+                parametroDAO.guardar(con, RESPONSABLE_REVISION, responsableRevision.trim(),
+                        "Nombre y cargo de quien revisa los reportes impresos (sale como Revisó en los PDF)");
                 con.commit();
                 Cambios c = new Cambios()
                         .campo("nombre del establecimiento", antes.get("nombre_establecimiento"), nombre.trim())
                         .campo("stock mínimo por defecto", antes.get("stock_minimo_defecto"), minimo)
                         .campo("stock máximo por defecto", antes.get("stock_maximo_defecto"), maximo)
                         .campo("vigencia de la contraseña (días)", antes.get("dias_vigencia_clave"), diasVigencia)
-                        .campo("cierre por inactividad (minutos)", antes.get("minutos_inactividad"), minutosInactividad);
+                        .campo("cierre por inactividad (minutos)", antes.get("minutos_inactividad"), minutosInactividad)
+                        .campo("responsable de revisión", antes.get(RESPONSABLE_REVISION), responsableRevision.trim());
                 if (c.hayCambios()) {
                     Auditoria.registrar("CAMBIO_PARAMETROS", c.toString());
                 }

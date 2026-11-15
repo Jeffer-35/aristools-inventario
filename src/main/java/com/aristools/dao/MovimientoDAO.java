@@ -15,6 +15,7 @@ import com.aristools.modelo.Salida;
 import com.aristools.modelo.TipoMovimiento;
 import com.aristools.modelo.Transferencia;
 import com.aristools.modelo.Usuario;
+import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -36,7 +37,7 @@ public class MovimientoDAO {
 
     /** Consulta base con todos los datos relacionados; también la usa ReporteDAO. */
     static final String SELECT_BASE =
-            "SELECT m.id_movimiento, m.cantidad, m.estado, m.fecha, m.fecha_autorizacion, m.motivo, "
+            "SELECT m.id_movimiento, m.cantidad, m.costo_unitario, m.estado, m.fecha, m.fecha_autorizacion, m.motivo, "
           + "m.motivo_rechazo, m.documento_soporte, m.observacion, "
           + "p.id_producto, p.codigo AS p_codigo, p.nombre AS p_nombre, p.estado AS p_estado, "
           + "p.stock_minimo, p.stock_maximo, "
@@ -80,8 +81,8 @@ public class MovimientoDAO {
         }
         String sql = "INSERT INTO movimiento_inventario (id_producto, id_tipo_movimiento, id_bodega_origen, "
                    + "id_bodega_destino, id_proveedor, id_usuario, estado, id_usuario_autoriza, fecha_autorizacion, "
-                   + "documento_soporte, motivo, cantidad, fecha, observacion) "
-                   + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                   + "documento_soporte, motivo, cantidad, fecha, observacion, costo_unitario) "
+                   + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         try (PreparedStatement ps = con.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             ps.setInt(1, m.getProducto().getIdProducto());
             ps.setInt(2, m.getTipo().getIdTipoMovimiento());
@@ -97,6 +98,7 @@ public class MovimientoDAO {
             ps.setInt(12, m.getCantidad());
             ps.setTimestamp(13, Timestamp.valueOf(m.getFecha()));
             ps.setString(14, m.getObservacion());
+            ps.setBigDecimal(15, m.getCostoUnitario());   // compra: costo de la factura; los demás se llenan al aplicar
             ps.executeUpdate();
             try (ResultSet rs = ps.getGeneratedKeys()) {
                 rs.next();
@@ -104,6 +106,19 @@ public class MovimientoDAO {
                 m.setIdMovimiento(id);
                 return id;
             }
+        }
+    }
+
+    /**
+     * Guarda el costo unitario con el que se valoró el movimiento al afectar
+     * el stock (kardex valorizado). Se llama dentro de la transacción.
+     */
+    public void guardarCosto(Connection con, int idMovimiento, BigDecimal costo) throws SQLException {
+        try (PreparedStatement ps = con.prepareStatement(
+                "UPDATE movimiento_inventario SET costo_unitario = ? WHERE id_movimiento = ?")) {
+            ps.setBigDecimal(1, costo);
+            ps.setInt(2, idMovimiento);
+            ps.executeUpdate();
         }
     }
 
@@ -228,6 +243,7 @@ public class MovimientoDAO {
         m.setUsuarioAutoriza(autoriza);
         m.setEstado(EstadoMovimiento.valueOf(rs.getString("estado")));
         m.setCantidad(rs.getInt("cantidad"));
+        m.setCostoUnitario(rs.getBigDecimal("costo_unitario"));
         m.setFecha(aFecha(rs.getTimestamp("fecha")));
         m.setFechaAutorizacion(aFecha(rs.getTimestamp("fecha_autorizacion")));
         m.setMotivo(rs.getString("motivo"));

@@ -6,9 +6,11 @@ import com.aristools.modelo.Naturaleza;
 import com.aristools.modelo.Producto;
 import com.aristools.modelo.Proveedor;
 import com.aristools.modelo.TipoMovimiento;
+import com.aristools.util.Formato;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import javax.swing.JButton;
@@ -23,6 +25,9 @@ import javax.swing.table.DefaultTableModel;
  * Registro de entradas de mercancía (RF-006). Una entrada puede traer varios
  * productos: se crea un movimiento por producto y todos quedan Pendientes
  * hasta que el Jefe de Compras los autorice (RF-010). El stock no cambia aún.
+ *
+ * En las compras se escribe el costo unitario de la factura: con ese dato el
+ * sistema recalcula el costo promedio del producto cuando la compra se autoriza.
  */
 public class EntradaPanel extends PanelMovimiento {
 
@@ -33,10 +38,12 @@ public class EntradaPanel extends PanelMovimiento {
     private final JTextField txtObservacion = new JTextField();
     private final JComboBox<Producto> cmbProducto = new JComboBox<>();
     private final JTextField txtCantidad = new JTextField();
+    private final JTextField txtCosto = new JTextField();
     private final List<Producto> productosLista = new ArrayList<>();
     private final List<Integer> cantidadesLista = new ArrayList<>();
+    private final List<BigDecimal> costosLista = new ArrayList<>();   // null en las devoluciones
     private final DefaultTableModel modeloLista = new DefaultTableModel(
-            new String[]{"Código", "Producto", "Cantidad"}, 0) {
+            new String[]{"Código", "Producto", "Cantidad", "Costo unit.", "Subtotal"}, 0) {
         @Override
         public boolean isCellEditable(int f, int c) {
             return false;
@@ -57,18 +64,22 @@ public class EntradaPanel extends PanelMovimiento {
         lineaProducto.setOpaque(false);
         txtCantidad.setPreferredSize(new Dimension(90, 32));
         txtCantidad.putClientProperty("JTextField.placeholderText", "Cantidad");
+        txtCosto.setPreferredSize(new Dimension(150, 32));
+        txtCosto.putClientProperty("JTextField.placeholderText", "Costo unit. (factura)");
+        txtCosto.setToolTipText("Costo de una unidad según la factura del proveedor. Solo en compras.");
         JButton btnAgregar = Tema.botonSecundario("Agregar");
         btnAgregar.addActionListener(e -> ejecutar(this::agregarProducto));
         JPanel derecha = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
         derecha.setOpaque(false);
         derecha.add(txtCantidad);
+        derecha.add(txtCosto);
         derecha.add(btnAgregar);
         lineaProducto.add(cmbProducto, BorderLayout.CENTER);
         lineaProducto.add(derecha, BorderLayout.EAST);
         agregarCampo("Producto", lineaProducto);
 
         Tema.estilizarTabla(tablaLista);
-        tablaLista.getColumnModel().getColumn(1).setPreferredWidth(320);
+        tablaLista.getColumnModel().getColumn(1).setPreferredWidth(280);
         JScrollPane scroll = new JScrollPane(tablaLista);
         scroll.setPreferredSize(new Dimension(500, 150));
         agregarFilaCompleta(scroll);
@@ -83,15 +94,17 @@ public class EntradaPanel extends PanelMovimiento {
         botones.add(btnRegistrar);
         agregarFilaCompleta(botones);
         agregarFilaCompleta(nota("La entrada queda Pendiente hasta que el Jefe de Compras la autorice; "
-                + "el stock aumenta solo en ese momento. La compra exige proveedor y documento soporte."));
+                + "el stock aumenta solo en ese momento. La compra exige proveedor, documento soporte y el costo "
+                + "unitario de la factura, con el que se recalcula el costo promedio del producto."));
 
-        // El proveedor solo aplica a las compras
+        // El proveedor y el costo de la factura solo aplican a las compras
         cmbTipo.addActionListener(e -> {
-            boolean esCompra = cmbTipo.getSelectedItem() != null
-                    && "Compra".equalsIgnoreCase(cmbTipo.getSelectedItem().toString());
+            boolean esCompra = esCompra();
             cmbProveedor.setEnabled(esCompra);
+            txtCosto.setEnabled(esCompra);
             if (!esCompra) {
                 cmbProveedor.setSelectedIndex(-1);
+                txtCosto.setText("");
             }
         });
 
@@ -116,6 +129,11 @@ public class EntradaPanel extends PanelMovimiento {
         });
     }
 
+    private boolean esCompra() {
+        return cmbTipo.getSelectedItem() != null
+                && "Compra".equalsIgnoreCase(cmbTipo.getSelectedItem().toString());
+    }
+
     private void agregarProducto() {
         Producto p = (Producto) cmbProducto.getSelectedItem();
         if (p == null) {
@@ -123,10 +141,16 @@ public class EntradaPanel extends PanelMovimiento {
             return;
         }
         int cantidad = leerCantidad(txtCantidad.getText());
+        // En la compra el costo es obligatorio; en la devolución no se pide
+        BigDecimal costo = esCompra() ? Formato.leerPesos(txtCosto.getText(), "costo unitario") : null;
         productosLista.add(p);
         cantidadesLista.add(cantidad);
-        modeloLista.addRow(new Object[]{p.getCodigo(), p.getNombre(), cantidad});
+        costosLista.add(costo);
+        modeloLista.addRow(new Object[]{p.getCodigo(), p.getNombre(), cantidad,
+            costo == null ? "—" : Formato.pesos(costo),
+            costo == null ? "—" : Formato.pesos(costo.multiply(BigDecimal.valueOf(cantidad)))});
         txtCantidad.setText("");
+        txtCosto.setText("");
         cmbProducto.requestFocus();
     }
 
@@ -135,6 +159,7 @@ public class EntradaPanel extends PanelMovimiento {
         if (fila >= 0) {
             productosLista.remove(fila);
             cantidadesLista.remove(fila);
+            costosLista.remove(fila);
             modeloLista.removeRow(fila);
         }
     }
@@ -149,6 +174,7 @@ public class EntradaPanel extends PanelMovimiento {
             Entrada e = new Entrada(productosLista.get(i), tipo, null, cantidadesLista.get(i), bodega, proveedor);
             e.setDocumentoSoporte(textoOpcional(txtDocumento.getText()));
             e.setObservacion(textoOpcional(txtObservacion.getText()));
+            e.setCostoUnitario(costosLista.get(i));   // costo de la factura (solo compras)
             entradas.add(e);
         }
         movimientos.registrarEntradas(entradas);   // valida y guarda en una sola transacción
@@ -156,6 +182,7 @@ public class EntradaPanel extends PanelMovimiento {
                 + "Queda Pendiente hasta que el Jefe de Compras la autorice.");
         productosLista.clear();
         cantidadesLista.clear();
+        costosLista.clear();
         modeloLista.setRowCount(0);
         txtDocumento.setText("");
         txtObservacion.setText("");

@@ -4,6 +4,7 @@ import com.aristools.controlador.ProductoControlador;
 import com.aristools.modelo.Categoria;
 import com.aristools.modelo.EstadoRegistro;
 import com.aristools.modelo.Producto;
+import com.aristools.util.Formato;
 import com.aristools.util.NegocioException;
 import java.math.BigDecimal;
 import java.util.List;
@@ -38,18 +39,18 @@ public class ProductosPanel extends PanelCatalogo<Producto> {
 
     @Override
     protected String[] columnas() {
-        return new String[]{"Código", "Nombre", "Categoría", "Unidad", "Costo ref.", "Mínimo", "Máximo", "Estado"};
+        return new String[]{"Código", "Nombre", "Categoría", "Unidad", "Costo ref.", "Costo prom.", "Mínimo", "Máximo", "Estado"};
     }
 
     @Override
     protected int[] anchosColumnas() {
-        return new int[]{80, 250, 110, 80, 90, 70, 70, 80};
+        return new int[]{80, 240, 110, 80, 90, 100, 70, 70, 80};
     }
 
     @Override
     protected Object[] fila(Producto p) {
         return new Object[]{p.getCodigo(), p.getNombre(), p.getCategoria(), p.getUnidadMedida(),
-            p.getCostoReferencia(), p.getStockMinimo() == null ? "General" : p.getStockMinimo(),
+            p.getCostoReferencia(), Formato.pesos(p.getCostoPromedio()), p.getStockMinimo() == null ? "General" : p.getStockMinimo(),
             p.getStockMaximo() == null ? "General" : p.getStockMaximo(), p.getEstado()};
     }
 

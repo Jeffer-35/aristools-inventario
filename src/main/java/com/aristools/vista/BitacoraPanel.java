@@ -64,13 +64,23 @@ public class BitacoraPanel extends JPanel implements Recargable {
                 Tema.error(this, ex.getMessage());
             }
         });
+        JButton btnImprimir = Tema.botonSecundario("Imprimir PDF");
+        btnImprimir.addActionListener(e -> {
+            try {
+                ExportadorPdf.exportar(this, modelo, "Bitácora de auditoría",
+                        List.of("Desde: " + txtDesde.getText().trim() + "   ·   Hasta: " + txtHasta.getText().trim()
+                                + "   ·   Acción: " + cmbAccion.getSelectedItem()), lblResumen.getText(), "bitacora");
+            } catch (NegocioException ex) {
+                Tema.error(this, ex.getMessage());
+            }
+        });
         txtBuscar.addActionListener(e -> consultar());
         BarraFiltros filtros = new BarraFiltros(2);
         filtros.agregar("Desde:", txtDesde);
         filtros.agregar("Hasta:", txtHasta);
         filtros.agregar("Acción:", cmbAccion);
         filtros.agregar("Buscar:", txtBuscar);
-        filtros.agregarBotones(btnConsultar, btnExportar);
+        filtros.agregarBotones(btnConsultar, btnExportar, btnImprimir);
 
         JPanel norte = new JPanel(new BorderLayout(0, 12));
         norte.setOpaque(false);

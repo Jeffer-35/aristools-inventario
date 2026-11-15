@@ -1,9 +1,14 @@
 package com.aristools.modelo;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
  * Una fila del kardex (RF-014): Saldo = saldo anterior + entradas − salidas.
+ *
+ * Kardex valorizado: además de las unidades lleva los valores en pesos.
+ * Valor del saldo = valor anterior + valor de la entrada − valor de la salida,
+ * donde cada valor es cantidad x costo unitario del movimiento.
  */
 public class LineaKardex {
 
@@ -16,6 +21,10 @@ public class LineaKardex {
     private int saldo;
     private String registra;
     private String autoriza;
+    private BigDecimal costoUnitario;                      // costo con el que se valoró el movimiento
+    private BigDecimal valorEntrada = BigDecimal.ZERO;     // entrada x costo unitario
+    private BigDecimal valorSalida = BigDecimal.ZERO;      // salida x costo unitario
+    private BigDecimal valorSaldo = BigDecimal.ZERO;       // valor en pesos de las unidades del saldo
 
     /** Constructor vacío: lo usan los DAO al leer filas de la base de datos. */
     public LineaKardex() {
@@ -106,6 +115,32 @@ public class LineaKardex {
 
     public void setAutoriza(String autoriza) {
         this.autoriza = autoriza;
+    }
+
+    // ----- Kardex valorizado -----
+
+    /** Guarda de una vez los cuatro valores en pesos de la línea. */
+    public void setValores(BigDecimal costoUnitario, BigDecimal valorEntrada, BigDecimal valorSalida, BigDecimal valorSaldo) {
+        this.costoUnitario = costoUnitario;
+        this.valorEntrada = valorEntrada;
+        this.valorSalida = valorSalida;
+        this.valorSaldo = valorSaldo;
+    }
+
+    public BigDecimal getCostoUnitario() {
+        return costoUnitario;
+    }
+
+    public BigDecimal getValorEntrada() {
+        return valorEntrada;
+    }
+
+    public BigDecimal getValorSalida() {
+        return valorSalida;
+    }
+
+    public BigDecimal getValorSaldo() {
+        return valorSaldo;
     }
 
 }

@@ -15,6 +15,7 @@ public class Producto {
     private Categoria categoria;
     private String unidadMedida;
     private BigDecimal costoReferencia;
+    private BigDecimal costoPromedio = BigDecimal.ZERO;   // costo promedio ponderado (lo calcula el sistema)
     private Integer stockMinimo;   // null = usa el umbral general
     private Integer stockMaximo;   // null = usa el umbral general
     private EstadoRegistro estado;
@@ -125,6 +126,15 @@ public class Producto {
 
     public void setCostoReferencia(BigDecimal costoReferencia) {
         this.costoReferencia = costoReferencia;
+    }
+
+    /** Costo promedio ponderado: cambia solo cuando se autoriza una compra. */
+    public BigDecimal getCostoPromedio() {
+        return costoPromedio;
+    }
+
+    public void setCostoPromedio(BigDecimal costoPromedio) {
+        this.costoPromedio = costoPromedio == null ? BigDecimal.ZERO : costoPromedio;
     }
 
     public Integer getStockMinimo() {

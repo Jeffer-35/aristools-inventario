@@ -12,13 +12,17 @@ import com.aristools.modelo.Movimiento;
 import com.aristools.modelo.Producto;
 import com.aristools.modelo.Proveedor;
 import com.aristools.modelo.TipoMovimiento;
+import com.aristools.util.Formato;
 import com.aristools.util.NegocioException;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.GridLayout;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
 import java.util.List;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
@@ -36,6 +40,9 @@ import javax.swing.table.DefaultTableModel;
  * movimientos autorizados y calcula el saldo (saldo anterior + entradas −
  * salidas). Cada rol ve solo los movimientos de su alcance: el controlador
  * recorta los datos según el usuario conectado.
+ *
+ * El kardex es valorizado: muestra el costo unitario de cada movimiento, el
+ * valor de lo que entra y sale y el valor del saldo (costo promedio ponderado).
  */
 public class ReportesPanel extends JPanel implements Recargable {
 
@@ -52,8 +59,9 @@ public class ReportesPanel extends JPanel implements Recargable {
     private final JTextField kDesde = campoFecha();
     private final JTextField kHasta = campoFecha();
     private final JLabel kResumen = new JLabel(" ");
+    private List<String> kDetalles = new ArrayList<>();   // filtros del último kardex generado (para el PDF)
     private final DefaultTableModel kModelo = modelo("Fecha", "Tipo", "Documento", "Bodega", "Entrada",
-            "Salida", "Saldo", "Registró", "Autorizó");
+            "Salida", "Saldo", "Costo unit.", "Valor entrada", "Valor salida", "Valor saldo", "Registró", "Autorizó");
 
     // Pestaña Movimientos
     private final JComboBox<Object> mProducto = new JComboBox<>();
@@ -63,6 +71,7 @@ public class ReportesPanel extends JPanel implements Recargable {
     private final JTextField mDesde = campoFecha();
     private final JTextField mHasta = campoFecha();
     private final JLabel mResumen = new JLabel(" ");
+    private List<String> mDetalles = new ArrayList<>();   // filtros de la última consulta (para el PDF)
     private final DefaultTableModel mModelo = modelo("Fecha", "Tipo", "Producto", "Bodega", "Cantidad",
             "Estado", "Documento", "Registró", "Autorizó");
 
@@ -73,7 +82,7 @@ public class ReportesPanel extends JPanel implements Recargable {
         JPanel textos = new JPanel(new GridLayout(2, 1));
         textos.setOpaque(false);
         textos.add(Tema.titulo("Reportes"));
-        textos.add(Tema.subtitulo("Kardex de un producto y movimientos con filtros. Las fechas son opcionales (AAAA-MM-DD)."));
+        textos.add(Tema.subtitulo("Kardex valorizado de un producto y movimientos con filtros. Las fechas son opcionales (AAAA-MM-DD)."));
         JTabbedPane pestanas = new JTabbedPane();
         pestanas.setFont(Tema.NEGRITA);
         pestanas.addTab("Kardex", crearKardex());
@@ -89,13 +98,16 @@ public class ReportesPanel extends JPanel implements Recargable {
         JButton exportar = Tema.botonSecundario("Exportar a Excel (CSV)");
         generar.addActionListener(e -> generarKardex());
         exportar.addActionListener(e -> ejecutar(() -> ExportadorCsv.exportar(this, kModelo, "kardex")));
+        JButton imprimir = Tema.botonSecundario("Imprimir PDF");
+        imprimir.addActionListener(e -> ejecutar(() -> ExportadorPdf.exportar(this, kModelo, "Kardex valorizado",
+                kDetalles, kResumen.getText(), "kardex")));
         BarraFiltros filtros = new BarraFiltros(2);
         filtros.agregar("Producto:", kProducto);
         filtros.agregar("Bodega:", kBodega);
         filtros.agregar("Desde:", kDesde);
         filtros.agregar("Hasta:", kHasta);
-        filtros.agregarBotones(generar, exportar);
-        return pestana(filtros, tabla(kModelo, new int[]{120, 150, 140, 140, 70, 70, 70, 90, 90}), kResumen);
+        filtros.agregarBotones(generar, exportar, imprimir);
+        return pestana(filtros, tabla(kModelo, new int[]{120, 140, 120, 130, 65, 65, 65, 100, 115, 115, 125, 85, 85}), kResumen);
     }
 
     private JPanel crearMovimientos() {
@@ -103,6 +115,9 @@ public class ReportesPanel extends JPanel implements Recargable {
         JButton exportar = Tema.botonSecundario("Exportar a Excel (CSV)");
         consultar.addActionListener(e -> consultarMovimientos());
         exportar.addActionListener(e -> ejecutar(() -> ExportadorCsv.exportar(this, mModelo, "movimientos")));
+        JButton imprimir = Tema.botonSecundario("Imprimir PDF");
+        imprimir.addActionListener(e -> ejecutar(() -> ExportadorPdf.exportar(this, mModelo, "Reporte de movimientos",
+                mDetalles, mResumen.getText(), "movimientos")));
         BarraFiltros filtros = new BarraFiltros(3);
         filtros.agregar("Producto:", mProducto);
         filtros.agregar("Bodega:", mBodega);
@@ -110,7 +125,7 @@ public class ReportesPanel extends JPanel implements Recargable {
         filtros.agregar("Tipo:", mTipo);
         filtros.agregar("Desde:", mDesde);
         filtros.agregar("Hasta:", mHasta);
-        filtros.agregarBotones(consultar, exportar);
+        filtros.agregarBotones(consultar, exportar, imprimir);
         return pestana(filtros, tabla(mModelo, new int[]{120, 150, 230, 180, 70, 100, 130, 90, 90}), mResumen);
     }
 
@@ -164,11 +179,21 @@ public class ReportesPanel extends JPanel implements Recargable {
             for (LineaKardex l : lineas) {
                 kModelo.addRow(new Object[]{l.getFecha() == null ? "" : l.getFecha().format(FECHA_HORA),
                     l.getTipo(), vacio(l.getDocumento()), vacio(l.getBodega()), l.getEntrada(), l.getSalida(),
-                    l.getSaldo(), vacio(l.getRegistra()), vacio(l.getAutoriza())});
+                    l.getSaldo(), Formato.pesos(l.getCostoUnitario()), pesosSiHay(l.getEntrada(), l.getValorEntrada()),
+                    pesosSiHay(l.getSalida(), l.getValorSalida()), Formato.pesos(l.getValorSaldo()),
+                    vacio(l.getRegistra()), vacio(l.getAutoriza())});
             }
             int saldoFinal = lineas.isEmpty() ? 0 : lineas.get(lineas.size() - 1).getSaldo();
+            BigDecimal valorFinal = lineas.isEmpty() ? BigDecimal.ZERO : lineas.get(lineas.size() - 1).getValorSaldo();
+            // Costo promedio = valor del saldo / unidades del saldo
+            String promedio = saldoFinal > 0
+                    ? Formato.pesos(valorFinal.divide(BigDecimal.valueOf(saldoFinal), 2, RoundingMode.HALF_UP)) : "—";
+            kDetalles = List.of("Producto: " + p.getCodigo() + " - " + p.getNombre(),
+                    "Bodega: " + kBodega.getSelectedItem() + "   ·   " + periodo(kDesde, kHasta),
+                    "Método de valoración: costo promedio ponderado");
             kResumen.setText(lineas.size() + " línea(s) · Saldo final: " + saldoFinal + " "
-                    + p.getUnidadMedida().toLowerCase() + "(s)");
+                    + p.getUnidadMedida().toLowerCase() + "(s) · Valor del saldo: " + Formato.pesos(valorFinal)
+                    + " · Costo promedio: " + promedio);
         });
     }
 
@@ -189,6 +214,9 @@ public class ReportesPanel extends JPanel implements Recargable {
                     m.getUsuarioRegistra() == null ? "" : m.getUsuarioRegistra().getNombreUsuario(),
                     m.getUsuarioAutoriza() == null ? "—" : m.getUsuarioAutoriza().getNombreUsuario()});
             }
+            mDetalles = List.of("Producto: " + mProducto.getSelectedItem() + "   ·   Bodega: " + mBodega.getSelectedItem(),
+                    "Proveedor: " + mProveedor.getSelectedItem() + "   ·   Tipo: " + mTipo.getSelectedItem()
+                    + "   ·   " + periodo(mDesde, mHasta));
             mResumen.setText(lista.size() + " movimiento(s) encontrados");
         });
     }
@@ -218,6 +246,18 @@ public class ReportesPanel extends JPanel implements Recargable {
             throw new NegocioException("La fecha '" + nombre + "' no es válida. Escríbala como AAAA-MM-DD "
                     + "(por ejemplo, 2026-10-01) o DD/MM/AAAA.");
         }
+    }
+
+    // Texto del período consultado, para el encabezado del PDF.
+    private static String periodo(JTextField desde, JTextField hasta) {
+        String d = desde.getText().trim();
+        String h = hasta.getText().trim();
+        return "Período: " + (d.isEmpty() ? "desde el inicio" : "desde " + d) + (h.isEmpty() ? " hasta hoy" : " hasta " + h);
+    }
+
+    // En el kardex solo se muestra el valor cuando hubo unidades en esa columna.
+    private static String pesosSiHay(int unidades, BigDecimal valor) {
+        return unidades == 0 ? "—" : Formato.pesos(valor);
     }
 
     private static String vacio(String texto) {
@@ -251,6 +291,9 @@ public class ReportesPanel extends JPanel implements Recargable {
     private static JScrollPane tabla(DefaultTableModel modelo, int[] anchos) {
         JTable t = new JTable(modelo);
         Tema.estilizarTabla(t);
+        if (anchos.length > 10) {
+            t.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);   // muchas columnas: barra de desplazamiento horizontal
+        }
         for (int i = 0; i < anchos.length; i++) {
             t.getColumnModel().getColumn(i).setPreferredWidth(anchos[i]);
         }

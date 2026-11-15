@@ -10,11 +10,13 @@ import com.aristools.modelo.Movimiento;
 import com.aristools.modelo.Naturaleza;
 import com.aristools.modelo.Proveedor;
 import com.aristools.modelo.Salida;
+import com.aristools.util.Formato;
 import com.aristools.util.NegocioException;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.GridLayout;
+import java.math.BigDecimal;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
@@ -203,6 +205,11 @@ public class AutorizacionesPanel extends JPanel implements Recargable {
         String extra = "";
         if (m instanceof Salida s && s.getProveedor() != null) {
             extra = " · Proveedor: " + s.getProveedor().getRazonSocial();
+        }
+        // En las compras el Jefe de Compras ve el costo de la factura antes de autorizar
+        if (m instanceof Entrada e && e.esCompra() && m.getCostoUnitario() != null) {
+            extra += " · Costo unitario: " + Formato.pesos(m.getCostoUnitario()) + " · Total: "
+                    + Formato.pesos(m.getCostoUnitario().multiply(BigDecimal.valueOf(m.getCantidad())));
         }
         lblDetalle.setText("<html><b>Movimiento N.º " + m.getIdMovimiento() + ":</b> " + m.getTipo().getNombre()
                 + " de " + m.getCantidad() + " · " + m.getProducto().getNombre() + extra

@@ -1,6 +1,7 @@
 package com.aristools.modelo;
 
 import com.aristools.util.NegocioException;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -12,6 +13,10 @@ import java.util.List;
  * Cada subclase implementa a su manera validar() y calcularCambiosStock()
  * (polimorfismo). Así GestorInventario aplica cualquier movimiento sin
  * preguntar de qué tipo es.
+ *
+ * Kardex valorizado: cada movimiento guarda el costo unitario con el que se
+ * valoró. Por defecto es el costo promedio del producto en ese momento; la
+ * compra (ver Entrada) usa el costo de la factura y recalcula el promedio.
  */
 public abstract class Movimiento {
 
@@ -28,6 +33,7 @@ public abstract class Movimiento {
     protected String motivoRechazo;
     protected String documentoSoporte;
     protected String observacion;
+    protected BigDecimal costoUnitario;   // costo con el que se valora (kardex valorizado)
 
     /** Todo movimiento nace Pendiente y con la fecha actual. */
     protected Movimiento() {
@@ -57,6 +63,28 @@ public abstract class Movimiento {
      * Ejemplo: una transferencia de 8 unidades devuelve -8 en el origen y +8 en el destino.
      */
     public abstract List<CambioStock> calcularCambiosStock();
+
+    // ----- Kardex valorizado (costo promedio ponderado) -----
+
+    /**
+     * Costo unitario con el que se valora este movimiento al afectar el stock.
+     * Regla general: el costo promedio que tiene el producto en ese momento.
+     * La compra lo redefine (polimorfismo) para usar el costo de la factura.
+     */
+    public BigDecimal costoParaValorar(BigDecimal costoPromedioActual) {
+        return costoPromedioActual;
+    }
+
+    /**
+     * Costo promedio del producto después de aplicar este movimiento.
+     * Regla general: no cambia, porque las unidades entran o salen al mismo
+     * costo promedio. Solo la compra lo recalcula (ver Entrada).
+     *
+     * @param stockAnterior unidades del producto en todas las bodegas antes del movimiento
+     */
+    public BigDecimal nuevoCostoPromedio(int stockAnterior, BigDecimal costoPromedioActual) {
+        return costoPromedioActual;
+    }
 
     // ----- Métodos comunes -----
 
@@ -180,4 +208,7 @@ public abstract class Movimiento {
 
     public String getObservacion() { return observacion; }
     public void setObservacion(String observacion) { this.observacion = observacion; }
+
+    public BigDecimal getCostoUnitario() { return costoUnitario; }
+    public void setCostoUnitario(BigDecimal costoUnitario) { this.costoUnitario = costoUnitario; }
 }

@@ -4,6 +4,7 @@ import com.aristools.conexion.ConexionDB;
 import com.aristools.modelo.Categoria;
 import com.aristools.modelo.EstadoRegistro;
 import com.aristools.modelo.Producto;
+import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -21,7 +22,7 @@ public class ProductoDAO {
 
     private static final String SELECT =
             "SELECT p.id_producto, p.codigo, p.nombre, p.descripcion, p.unidad_medida, p.costo_referencia, "
-          + "p.stock_minimo, p.stock_maximo, p.estado, c.id_categoria, c.nombre AS cat_nombre, "
+          + "p.costo_promedio, p.stock_minimo, p.stock_maximo, p.estado, c.id_categoria, c.nombre AS cat_nombre, "
           + "c.descripcion AS cat_desc, c.estado AS cat_estado "
           + "FROM producto p JOIN categoria c ON c.id_categoria = p.id_categoria ";
 
@@ -58,12 +59,15 @@ public class ProductoDAO {
         return buscarUno("p.codigo = ?", codigo);
     }
 
+    /** El producto nuevo arranca con su costo de referencia como costo promedio. */
     public int insertar(Producto p) throws SQLException {
         String sql = "INSERT INTO producto (codigo, nombre, descripcion, id_categoria, unidad_medida, "
-                   + "costo_referencia, stock_minimo, stock_maximo, estado) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                   + "costo_referencia, stock_minimo, stock_maximo, estado, costo_promedio) "
+                   + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         try (Connection con = ConexionDB.obtener();
              PreparedStatement ps = con.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             llenar(ps, p);
+            ps.setBigDecimal(10, p.getCostoReferencia());
             ps.executeUpdate();
             try (ResultSet rs = ps.getGeneratedKeys()) {
                 rs.next();
@@ -89,6 +93,32 @@ public class ProductoDAO {
              PreparedStatement ps = con.prepareStatement("UPDATE producto SET estado = ? WHERE id_producto = ?")) {
             ps.setString(1, e.name());
             ps.setInt(2, id);
+            ps.executeUpdate();
+        }
+    }
+
+    /**
+     * Lee el costo promedio del producto y bloquea su fila hasta el COMMIT,
+     * para que dos compras simultáneas no calculen el promedio con datos viejos.
+     * Se usa dentro de la transacción de GestorInventario.
+     */
+    public BigDecimal bloquearCostoPromedio(Connection con, int idProducto) throws SQLException {
+        try (PreparedStatement ps = con.prepareStatement(
+                "SELECT costo_promedio FROM producto WHERE id_producto = ? FOR UPDATE")) {
+            ps.setInt(1, idProducto);
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                return rs.getBigDecimal(1);
+            }
+        }
+    }
+
+    /** Guarda el costo promedio recalculado por una compra (misma transacción). */
+    public void actualizarCostoPromedio(Connection con, int idProducto, BigDecimal costo) throws SQLException {
+        try (PreparedStatement ps = con.prepareStatement(
+                "UPDATE producto SET costo_promedio = ? WHERE id_producto = ?")) {
+            ps.setBigDecimal(1, costo);
+            ps.setInt(2, idProducto);
             ps.executeUpdate();
         }
     }
@@ -130,9 +160,11 @@ public class ProductoDAO {
     private Producto mapear(ResultSet rs) throws SQLException {
         Categoria c = new Categoria(rs.getInt("id_categoria"), rs.getString("cat_nombre"),
                 rs.getString("cat_desc"), EstadoRegistro.valueOf(rs.getString("cat_estado")));
-        return new Producto(rs.getInt("id_producto"), rs.getString("codigo"), rs.getString("nombre"),
+        Producto p = new Producto(rs.getInt("id_producto"), rs.getString("codigo"), rs.getString("nombre"),
                 rs.getString("descripcion"), c, rs.getString("unidad_medida"), rs.getBigDecimal("costo_referencia"),
                 rs.getObject("stock_minimo", Integer.class), rs.getObject("stock_maximo", Integer.class),
                 EstadoRegistro.valueOf(rs.getString("estado")));
+        p.setCostoPromedio(rs.getBigDecimal("costo_promedio"));
+        return p;
     }
 }

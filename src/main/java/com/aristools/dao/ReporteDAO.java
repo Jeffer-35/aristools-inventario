@@ -10,6 +10,8 @@ import com.aristools.modelo.Movimiento;
 import com.aristools.modelo.Naturaleza;
 import com.aristools.modelo.Salida;
 import com.aristools.modelo.Transferencia;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -29,6 +31,9 @@ public class ReporteDAO {
      * aplica Saldo = saldo anterior + entradas − salidas. Si hay fecha inicial,
      * la primera línea es el "Saldo inicial" acumulado antes de esa fecha.
      *
+     * Kardex valorizado: cada línea lleva también sus valores en pesos
+     * (cantidad x costo unitario del movimiento) y el valor del saldo.
+     *
      * @param idBodega null para todas las bodegas
      * @param desde    null para desde el inicio
      * @param hasta    null para hasta hoy
@@ -43,6 +48,7 @@ public class ReporteDAO {
         LocalDateTime fin = hasta == null ? null : hasta.plusDays(1).atStartOfDay();
         List<LineaKardex> lineas = new ArrayList<>();
         int saldo = 0;
+        BigDecimal valorSaldo = BigDecimal.ZERO;
         boolean saldoInicialAgregado = false;
         try (Connection con = ConexionDB.obtener();
              PreparedStatement ps = con.prepareStatement(sql)) {
@@ -55,29 +61,53 @@ public class ReporteDAO {
                     Movimiento m = MovimientoDAO.mapear(rs);
                     LocalDateTime cuando = m.getFechaAutorizacion() != null ? m.getFechaAutorizacion() : m.getFecha();
                     int[] es = entradaSalida(m, idBodega);
+                    BigDecimal costo = m.getCostoUnitario() == null ? BigDecimal.ZERO : m.getCostoUnitario();
+                    BigDecimal valorEntrada = valor(es[0], costo);
+                    BigDecimal valorSalida = valor(es[1], costo);
                     if (inicio != null && cuando.isBefore(inicio)) {
                         saldo += es[0] - es[1];          // acumula el saldo inicial
+                        valorSaldo = valorDelSaldo(saldo, valorSaldo.add(valorEntrada).subtract(valorSalida));
                         continue;
                     }
                     if (fin != null && !cuando.isBefore(fin)) {
                         break;                           // ya pasó la fecha final
                     }
                     if (inicio != null && !saldoInicialAgregado) {
-                        lineas.add(new LineaKardex(inicio, "Saldo inicial", null, null, 0, 0, saldo, null, null));
+                        lineas.add(saldoInicial(inicio, saldo, valorSaldo));
                         saldoInicialAgregado = true;
                     }
                     saldo += es[0] - es[1];
-                    lineas.add(new LineaKardex(cuando, m.getTipo().getNombre(), m.getDocumentoSoporte(),
+                    valorSaldo = valorDelSaldo(saldo, valorSaldo.add(valorEntrada).subtract(valorSalida));
+                    LineaKardex linea = new LineaKardex(cuando, m.getTipo().getNombre(), m.getDocumentoSoporte(),
                             nombreBodega(m, idBodega), es[0], es[1], saldo,
                             m.getUsuarioRegistra().getNombreUsuario(),
-                            m.getUsuarioAutoriza() == null ? null : m.getUsuarioAutoriza().getNombreUsuario()));
+                            m.getUsuarioAutoriza() == null ? null : m.getUsuarioAutoriza().getNombreUsuario());
+                    linea.setValores(costo, valorEntrada, valorSalida, valorSaldo);
+                    lineas.add(linea);
                 }
             }
         }
         if (inicio != null && !saldoInicialAgregado) {
-            lineas.add(0, new LineaKardex(inicio, "Saldo inicial", null, null, 0, 0, saldo, null, null));
+            lineas.add(0, saldoInicial(inicio, saldo, valorSaldo));
         }
         return lineas;
+    }
+
+    // Valor en pesos de unas unidades: cantidad x costo unitario, con dos decimales.
+    private static BigDecimal valor(int unidades, BigDecimal costoUnitario) {
+        return costoUnitario.multiply(BigDecimal.valueOf(unidades)).setScale(2, RoundingMode.HALF_UP);
+    }
+
+    // Sin unidades no puede quedar valor: evita que se acumulen centavos por los redondeos.
+    private static BigDecimal valorDelSaldo(int saldo, BigDecimal valorCalculado) {
+        return saldo <= 0 || valorCalculado.signum() < 0 ? BigDecimal.ZERO.setScale(2) : valorCalculado;
+    }
+
+    // Primera línea del kardex cuando se consulta desde una fecha.
+    private static LineaKardex saldoInicial(LocalDateTime inicio, int saldo, BigDecimal valorSaldo) {
+        LineaKardex linea = new LineaKardex(inicio, "Saldo inicial", null, null, 0, 0, saldo, null, null);
+        linea.setValores(null, BigDecimal.ZERO, BigDecimal.ZERO, valorSaldo);
+        return linea;
     }
 
     /** Reporte de movimientos con filtros opcionales (los null significan "todos"). */

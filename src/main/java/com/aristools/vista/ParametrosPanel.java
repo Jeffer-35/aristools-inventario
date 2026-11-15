@@ -30,6 +30,7 @@ public class ParametrosPanel extends JPanel implements Recargable {
     private final JTextField txtMaximo = new JTextField();
     private final JTextField txtVigencia = new JTextField();
     private final JTextField txtInactividad = new JTextField();
+    private final JTextField txtRevision = new JTextField();
 
     public ParametrosPanel() {
         setLayout(new BorderLayout(0, 18));
@@ -53,6 +54,8 @@ public class ParametrosPanel extends JPanel implements Recargable {
         fila = agregar(tarjeta, fila, "Stock máximo por defecto", txtMaximo);
         fila = agregar(tarjeta, fila, "Vigencia de la contraseña (días)", txtVigencia);
         fila = agregar(tarjeta, fila, "Cierre por inactividad (minutos)", txtInactividad);
+        fila = agregar(tarjeta, fila, "Responsable de revisión (PDF)", txtRevision);
+        txtRevision.putClientProperty("JTextField.placeholderText", "Nombre y cargo de quien revisa los reportes");
 
         GridBagConstraints c = new GridBagConstraints();
         c.gridy = fila++;
@@ -64,7 +67,9 @@ public class ParametrosPanel extends JPanel implements Recargable {
                 + "productos que no tienen mínimo o máximo propio. Cambiarlos no modifica los umbrales que ya "
                 + "están definidos en cada producto.<br><br><b>Seguridad:</b> con vigencia 0 la contraseña no "
                 + "vence (recomendación NIST SP 800-63B); escriba 15 o 30 si la política de la empresa exige "
-                + "cambiarla. Con 0 minutos no se cierra la sesión por inactividad.</body></html>");
+                + "cambiarla. Con 0 minutos no se cierra la sesión por inactividad.<br><br><b>Reportes PDF:</b> el "
+                + "responsable de revisión aparece como <i>Revisó</i> en los reportes impresos; <i>Elaboró</i> "
+                + "es el usuario que genera el reporte.</body></html>");
         nota.setFont(Tema.NORMAL.deriveFont(12f));
         nota.setForeground(Tema.TEXTO_SUAVE);
         tarjeta.add(nota, c);
@@ -105,6 +110,7 @@ public class ParametrosPanel extends JPanel implements Recargable {
     public void recargar() {
         txtVigencia.setText("0");        // valores si la base aún no tiene estos parámetros
         txtInactividad.setText("15");
+        txtRevision.setText("Supervisor de Bodega");
         try {
             for (Parametro p : controlador.listar()) {
                 switch (p.getClave()) {
@@ -113,6 +119,7 @@ public class ParametrosPanel extends JPanel implements Recargable {
                     case "stock_maximo_defecto" -> txtMaximo.setText(p.getValor());
                     case "dias_vigencia_clave" -> txtVigencia.setText(p.getValor());
                     case "minutos_inactividad" -> txtInactividad.setText(p.getValor());
+                    case ParametroControlador.RESPONSABLE_REVISION -> txtRevision.setText(p.getValor());
                     default -> { }
                 }
             }
@@ -128,7 +135,7 @@ public class ParametrosPanel extends JPanel implements Recargable {
                     entero(txtMinimo.getText(), "stock mínimo por defecto"),
                     entero(txtMaximo.getText(), "stock máximo por defecto"),
                     entero(txtVigencia.getText(), "vigencia de la contraseña"),
-                    minutos);
+                    minutos, txtRevision.getText());
             MonitorInactividad.aplicar(minutos);   // el nuevo tiempo rige desde ya, sin cerrar sesión
             Tema.info(this, "Configuración guardada correctamente.");
             recargar();

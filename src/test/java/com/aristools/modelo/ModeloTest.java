@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.aristools.util.NegocioException;
+import java.math.BigDecimal;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -99,7 +100,48 @@ class ModeloTest {
         NegocioException ex = assertThrows(NegocioException.class, e::validar);
         assertEquals("Una compra exige el documento de soporte (factura o remisión).", ex.getMessage());
         e.setDocumentoSoporte("FAC-004512");
-        e.validar();   // con proveedor y documento ya es válida
+        e.setCostoUnitario(new BigDecimal("24000"));
+        e.validar();   // con proveedor, documento y costo ya es válida
+    }
+
+    @Test
+    void compraSinCostoDeFacturaSeRechaza() {
+        Proveedor proveedor = new Proveedor(1, "900123456-1", "Distribuidora Ferretera del Valle S.A.S.",
+                "", "", "", "", EstadoRegistro.ACTIVO);
+        Entrada e = new Entrada(martillo, tipo("Compra", Naturaleza.ENTRADA, true, null), registra, 10, principal, proveedor);
+        e.setDocumentoSoporte("FAC-004512");
+        NegocioException ex = assertThrows(NegocioException.class, e::validar);
+        assertEquals("Una compra exige el costo unitario de la factura, mayor que cero.", ex.getMessage());
+        e.setCostoUnitario(BigDecimal.ZERO);
+        assertThrows(NegocioException.class, e::validar, "El costo cero tampoco es válido");
+    }
+
+    // ----- kardex valorizado (costo promedio ponderado) -----
+
+    @Test
+    void laCompraRecalculaElCostoPromedioPonderado() {
+        Entrada compra = new Entrada(martillo, tipo("Compra", Naturaleza.ENTRADA, true, null), registra, 10, principal, null);
+        compra.setCostoUnitario(new BigDecimal("24000"));
+        BigDecimal promedioActual = new BigDecimal("20000");
+        // (10 x 20.000 + 10 x 24.000) / 20 = 22.000
+        assertEquals(0, new BigDecimal("22000").compareTo(compra.nuevoCostoPromedio(10, promedioActual)));
+        // La compra se valora al costo de la factura, no al promedio
+        assertEquals(0, new BigDecimal("24000").compareTo(compra.costoParaValorar(promedioActual)));
+        // Sin existencias, el promedio es el costo de la factura
+        assertEquals(0, new BigDecimal("24000").compareTo(compra.nuevoCostoPromedio(0, promedioActual)));
+    }
+
+    @Test
+    void soloLaCompraCambiaElCostoPromedio() {
+        BigDecimal promedio = new BigDecimal("22000");
+        Movimiento devolucion = new Entrada(martillo, tipo("Devolución", Naturaleza.ENTRADA, true, null), registra, 5, principal, null);
+        Movimiento salida = new Salida(martillo, tipo("Consumo interno", Naturaleza.SALIDA, false, null), registra, 3, principal, null);
+        Movimiento traslado = new Transferencia(martillo, tipo("Transferencia", Naturaleza.TRANSFERENCIA, false, null),
+                registra, 8, principal, exhibicion);
+        for (Movimiento m : List.of(devolucion, salida, traslado)) {
+            assertEquals(promedio, m.costoParaValorar(promedio), "Se valora al costo promedio del momento");
+            assertEquals(promedio, m.nuevoCostoPromedio(20, promedio), "El promedio no cambia");
+        }
     }
 
     // ----- autorizaciones (segregación de funciones) -----

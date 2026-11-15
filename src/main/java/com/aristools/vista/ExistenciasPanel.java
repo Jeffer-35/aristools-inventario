@@ -63,13 +63,23 @@ public class ExistenciasPanel extends JPanel implements Recargable {
         JButton btnExportar = Tema.botonSecundario("Exportar a Excel (CSV)");
         btnConsultar.addActionListener(e -> consultar());
         btnExportar.addActionListener(e -> ExportadorCsv.exportar(this, modelo, "existencias"));
+        JButton btnImprimir = Tema.botonSecundario("Imprimir PDF");
+        btnImprimir.addActionListener(e -> {
+            try {
+                ExportadorPdf.exportar(this, modelo, "Existencias por bodega",
+                        List.of("Categoría: " + cmbCategoria.getSelectedItem() + "   ·   Bodega: "
+                                + cmbBodega.getSelectedItem()), lblResumen.getText(), "existencias");
+            } catch (NegocioException ex) {
+                Tema.error(this, ex.getMessage());
+            }
+        });
         txtBuscar.addActionListener(e -> consultar());
         BarraFiltros filtros = new BarraFiltros(3);
         filtros.agregar("Buscar:", txtBuscar);
         filtros.agregar("Categoría:", cmbCategoria);
         filtros.agregar("Bodega:", cmbBodega);
         filtros.agregar("", chkInactivos);
-        filtros.agregarBotones(btnConsultar, btnExportar);
+        filtros.agregarBotones(btnConsultar, btnExportar, btnImprimir);
 
         JPanel norte = new JPanel(new BorderLayout(0, 12));
         norte.setOpaque(false);

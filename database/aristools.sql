@@ -69,6 +69,7 @@ CREATE TABLE producto (
     id_categoria      INT           NOT NULL,
     unidad_medida     VARCHAR(20)   NOT NULL,
     costo_referencia  DECIMAL(12,2) NOT NULL DEFAULT 0,
+    costo_promedio    DECIMAL(14,4) NOT NULL DEFAULT 0,  -- costo promedio ponderado: lo recalcula cada compra autorizada
     stock_minimo      INT           NULL,  -- NULL: usa el umbral por defecto de parametro
     stock_maximo      INT           NULL,
     estado            VARCHAR(10)   NOT NULL DEFAULT 'ACTIVO',
@@ -76,6 +77,7 @@ CREATE TABLE producto (
     CONSTRAINT uq_producto_codigo UNIQUE (codigo),
     CONSTRAINT fk_producto_categoria FOREIGN KEY (id_categoria) REFERENCES categoria (id_categoria),
     CONSTRAINT ck_producto_costo CHECK (costo_referencia >= 0),
+    CONSTRAINT ck_producto_costo_promedio CHECK (costo_promedio >= 0),
     CONSTRAINT ck_producto_minimo CHECK (stock_minimo IS NULL OR stock_minimo >= 0),
     CONSTRAINT ck_producto_umbrales CHECK (stock_minimo IS NULL OR stock_maximo IS NULL
                                            OR stock_maximo >= stock_minimo),  -- RF-003: mínimo ≤ máximo
@@ -150,6 +152,7 @@ CREATE TABLE movimiento_inventario (
     documento_soporte    VARCHAR(50)  NULL,
     motivo               VARCHAR(255) NULL,
     cantidad             INT          NOT NULL,
+    costo_unitario       DECIMAL(14,4) NULL,  -- compra: costo de la factura; los demás: costo promedio al aplicarse
     fecha                DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     observacion          VARCHAR(255) NULL,
     CONSTRAINT pk_movimiento PRIMARY KEY (id_movimiento),
@@ -162,6 +165,7 @@ CREATE TABLE movimiento_inventario (
     CONSTRAINT fk_movimiento_usuario_autoriza FOREIGN KEY (id_usuario_autoriza) REFERENCES usuario (id_usuario),
     CONSTRAINT ck_movimiento_estado CHECK (estado IN ('PENDIENTE', 'AUTORIZADO', 'RECHAZADO')),
     CONSTRAINT ck_movimiento_cantidad CHECK (cantidad > 0),
+    CONSTRAINT ck_movimiento_costo CHECK (costo_unitario IS NULL OR costo_unitario >= 0),
     -- Segregación de funciones: quien registra no puede autorizar (RF-010, RF-011)
     CONSTRAINT ck_movimiento_segregacion CHECK (id_usuario_autoriza IS NULL OR id_usuario_autoriza <> id_usuario),
     -- Todo movimiento afecta al menos una bodega (origen, destino o ambas)
@@ -258,7 +262,8 @@ INSERT INTO parametro (clave, valor, descripcion) VALUES
 ('stock_minimo_defecto',   '10',  'Umbral mínimo para productos sin stock mínimo propio'),
 ('stock_maximo_defecto',   '100', 'Umbral máximo para productos sin stock máximo propio'),
 ('dias_vigencia_clave',    '0',   'Días de vigencia de la contraseña (0 = sin vencimiento, recomendación NIST SP 800-63B)'),
-('minutos_inactividad',    '15',  'Minutos sin actividad para cerrar la sesión (0 = desactivado)');
+('minutos_inactividad',    '15',  'Minutos sin actividad para cerrar la sesión (0 = desactivado)'),
+('responsable_revision',   'Supervisor de Bodega', 'Nombre y cargo de quien revisa los reportes impresos (sale como Revisó en los PDF)');
 
 
 -- Nota para la aplicación:

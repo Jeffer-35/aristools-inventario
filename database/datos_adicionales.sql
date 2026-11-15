@@ -155,4 +155,18 @@ WHERE p.codigo = 'PIN-001'
 GROUP BY p.id_producto, p.stock_minimo
 HAVING SUM(e.cantidad) <= p.stock_minimo;
 
+-- ---------------------------------------------------------------------
+-- Kardex valorizado (costo promedio ponderado).
+-- Los datos de prueba se valoran al costo de referencia de cada producto:
+-- ese es el costo promedio inicial y el costo de cada movimiento cargado.
+-- (Se filtra por la llave primaria para que Workbench lo permita en modo seguro.)
+-- ---------------------------------------------------------------------
+UPDATE producto SET costo_promedio = costo_referencia
+WHERE id_producto > 0 AND costo_promedio = 0;
+
+UPDATE movimiento_inventario
+SET costo_unitario = (SELECT p.costo_referencia FROM producto p
+                      WHERE p.id_producto = movimiento_inventario.id_producto)
+WHERE id_movimiento > 0 AND costo_unitario IS NULL;
+
 COMMIT;

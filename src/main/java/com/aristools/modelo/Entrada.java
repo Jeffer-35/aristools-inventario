@@ -1,12 +1,18 @@
 package com.aristools.modelo;
 
 import com.aristools.util.NegocioException;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.List;
 
 /**
  * Entrada de mercancía por compra o devolución (RF-006).
  * Queda Pendiente hasta que el Jefe de Compras la autoriza (RF-010).
- * La compra exige proveedor activo y documento de soporte (reglas del RF-006).
+ * La compra exige proveedor activo, documento de soporte y el costo unitario
+ * de la factura (reglas del RF-006).
+ *
+ * Kardex valorizado: la compra es el único movimiento que cambia el costo
+ * promedio del producto (método del costo promedio ponderado).
  */
 public class Entrada extends Movimiento {
 
@@ -33,14 +39,49 @@ public class Entrada extends Movimiento {
         if (bodegaDestino == null || !bodegaDestino.estaActiva()) {
             throw new NegocioException("Seleccione una bodega de destino activa.");
         }
-        if ("Compra".equalsIgnoreCase(tipo.getNombre())
-                && (proveedor == null || !proveedor.estaActivo())) {
+        if (esCompra() && (proveedor == null || !proveedor.estaActivo())) {
             throw new NegocioException("Una compra exige un proveedor activo.");
         }
-        if ("Compra".equalsIgnoreCase(tipo.getNombre())
-                && (documentoSoporte == null || documentoSoporte.isBlank())) {
+        if (esCompra() && (documentoSoporte == null || documentoSoporte.isBlank())) {
             throw new NegocioException("Una compra exige el documento de soporte (factura o remisión).");
         }
+        if (esCompra() && (costoUnitario == null || costoUnitario.compareTo(BigDecimal.ZERO) <= 0)) {
+            throw new NegocioException("Una compra exige el costo unitario de la factura, mayor que cero.");
+        }
+    }
+
+    /** @return true si la entrada es una compra a proveedor (y no una devolución) */
+    public boolean esCompra() {
+        return tipo != null && "Compra".equalsIgnoreCase(tipo.getNombre());
+    }
+
+    /** La compra se valora al costo de la factura; la devolución, al costo promedio actual. */
+    @Override
+    public BigDecimal costoParaValorar(BigDecimal costoPromedioActual) {
+        return esCompra() && costoUnitario != null ? costoUnitario : costoPromedioActual;
+    }
+
+    /**
+     * Costo promedio ponderado después de la compra:
+     *
+     *   (stock anterior x promedio anterior + cantidad comprada x costo de la factura)
+     *   -------------------------------------------------------------------------------
+     *                      (stock anterior + cantidad comprada)
+     *
+     * Ejemplo: hay 10 martillos a $ 20.000 y se compran 10 a $ 24.000:
+     * (10 x 20.000 + 10 x 24.000) / 20 = $ 22.000.
+     * Si no había existencias, el promedio es el costo de la factura.
+     */
+    @Override
+    public BigDecimal nuevoCostoPromedio(int stockAnterior, BigDecimal costoPromedioActual) {
+        if (!esCompra() || costoUnitario == null) {
+            return costoPromedioActual;
+        }
+        int stock = Math.max(stockAnterior, 0);
+        BigDecimal valorAnterior = costoPromedioActual.multiply(BigDecimal.valueOf(stock));
+        BigDecimal valorCompra = costoUnitario.multiply(BigDecimal.valueOf(cantidad));
+        return valorAnterior.add(valorCompra)
+                .divide(BigDecimal.valueOf(stock + cantidad), 4, RoundingMode.HALF_UP);
     }
 
     /** Una entrada suma la cantidad en la bodega de destino. */
