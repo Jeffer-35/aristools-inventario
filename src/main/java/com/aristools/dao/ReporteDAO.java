@@ -3,11 +3,14 @@ package com.aristools.dao;
 import com.aristools.conexion.ConexionDB;
 import com.aristools.modelo.Ajuste;
 import com.aristools.modelo.Bodega;
+import com.aristools.modelo.ClasificacionAbc;
 import com.aristools.modelo.Entrada;
 import com.aristools.modelo.FiltroMovimiento;
 import com.aristools.modelo.LineaKardex;
+import com.aristools.modelo.LoteVencimiento;
 import com.aristools.modelo.Movimiento;
 import com.aristools.modelo.Naturaleza;
+import com.aristools.modelo.Producto;
 import com.aristools.modelo.Salida;
 import com.aristools.modelo.Transferencia;
 import java.math.BigDecimal;
@@ -21,7 +24,9 @@ import java.sql.Types;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /** Consultas de kardex y reportes de movimientos (RF-014). Solo lectura. */
 public class ReporteDAO {
@@ -179,6 +184,94 @@ public class ReporteDAO {
                 }
             }
         }
+        return lista;
+    }
+
+    /**
+     * Consumo valorizado de cada producto activo en un período: unidades que
+     * salieron (consumos, mermas, daños, devoluciones a proveedor y ajustes
+     * negativos ya AUTORIZADOS) y su valor al costo con que se valoraron.
+     * Los productos sin salidas aparecen con cero. Es la base de la
+     * clasificación ABC.
+     */
+    public List<ClasificacionAbc> consumoPorProducto(LocalDate desde, LocalDate hasta) throws SQLException {
+        String sql = "SELECT p.id_producto, p.codigo, p.nombre, p.unidad_medida, "
+                   + "COALESCE(SUM(m.cantidad), 0) AS unidades, "
+                   + "COALESCE(SUM(m.cantidad * COALESCE(m.costo_unitario, p.costo_promedio)), 0) AS valor "
+                   + "FROM producto p "
+                   + "LEFT JOIN movimiento_inventario m ON m.id_producto = p.id_producto "
+                   + "AND m.estado = 'AUTORIZADO' "
+                   + "AND m.id_tipo_movimiento IN (SELECT id_tipo_movimiento FROM tipo_movimiento WHERE naturaleza = 'SALIDA') "
+                   + "AND (? IS NULL OR COALESCE(m.fecha_autorizacion, m.fecha) >= ?) "
+                   + "AND (? IS NULL OR COALESCE(m.fecha_autorizacion, m.fecha) < ?) "
+                   + "WHERE p.estado = 'ACTIVO' "
+                   + "GROUP BY p.id_producto, p.codigo, p.nombre, p.unidad_medida";
+        Timestamp inicio = desde == null ? null : Timestamp.valueOf(desde.atStartOfDay());
+        Timestamp fin = hasta == null ? null : Timestamp.valueOf(hasta.plusDays(1).atStartOfDay());
+        List<ClasificacionAbc> lista = new ArrayList<>();
+        try (Connection con = ConexionDB.obtener();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setTimestamp(1, inicio);
+            ps.setTimestamp(2, inicio);
+            ps.setTimestamp(3, fin);
+            ps.setTimestamp(4, fin);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    Producto p = new Producto();
+                    p.setIdProducto(rs.getInt("id_producto"));
+                    p.setCodigo(rs.getString("codigo"));
+                    p.setNombre(rs.getString("nombre"));
+                    p.setUnidadMedida(rs.getString("unidad_medida"));
+                    lista.add(new ClasificacionAbc(p, rs.getInt("unidades"), rs.getBigDecimal("valor")));
+                }
+            }
+        }
+        return lista;
+    }
+
+    /**
+     * Lotes con fecha de vencimiento (compras AUTORIZADAS de productos que
+     * vencen), con el saldo estimado de cada uno según la regla FEFO.
+     * Solo devuelve los lotes que todavía tienen unidades en bodega,
+     * ordenados por fecha de vencimiento: el primero es el que debe salir primero.
+     */
+    public List<LoteVencimiento> lotesConSaldo() throws SQLException {
+        String sql = "SELECT p.id_producto, p.codigo, p.nombre, p.unidad_medida, m.lote, m.fecha_vencimiento, "
+                   + "m.cantidad, pv.razon_social, b.nombre AS bodega, "
+                   + "(SELECT COALESCE(SUM(e.cantidad), 0) FROM existencia e WHERE e.id_producto = p.id_producto) AS stock "
+                   + "FROM movimiento_inventario m "
+                   + "JOIN producto p ON p.id_producto = m.id_producto "
+                   + "LEFT JOIN proveedor pv ON pv.id_proveedor = m.id_proveedor "
+                   + "LEFT JOIN bodega b ON b.id_bodega = m.id_bodega_destino "
+                   + "WHERE m.estado = 'AUTORIZADO' AND m.fecha_vencimiento IS NOT NULL AND p.estado = 'ACTIVO' "
+                   + "ORDER BY p.id_producto, m.fecha_vencimiento";
+        Map<Integer, List<LoteVencimiento>> porProducto = new LinkedHashMap<>();
+        Map<Integer, Integer> stock = new LinkedHashMap<>();
+        try (Connection con = ConexionDB.obtener();
+             PreparedStatement ps = con.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                Producto p = new Producto();
+                p.setIdProducto(rs.getInt("id_producto"));
+                p.setCodigo(rs.getString("codigo"));
+                p.setNombre(rs.getString("nombre"));
+                p.setUnidadMedida(rs.getString("unidad_medida"));
+                p.setControlaVencimiento(true);
+                porProducto.computeIfAbsent(p.getIdProducto(), k -> new ArrayList<>()).add(new LoteVencimiento(p,
+                        rs.getString("lote"), rs.getDate("fecha_vencimiento").toLocalDate(), rs.getInt("cantidad"),
+                        rs.getString("razon_social"), rs.getString("bodega")));
+                stock.put(p.getIdProducto(), rs.getInt("stock"));
+            }
+        }
+        List<LoteVencimiento> lista = new ArrayList<>();
+        for (Map.Entry<Integer, List<LoteVencimiento>> e : porProducto.entrySet()) {
+            for (LoteVencimiento l : LoteVencimiento.asignarSaldos(e.getValue(), stock.get(e.getKey()))) {
+                if (l.getSaldoEstimado() > 0) {
+                    lista.add(l);
+                }
+            }
+        }
+        lista.sort(java.util.Comparator.comparing(LoteVencimiento::getFechaVencimiento));
         return lista;
     }
 

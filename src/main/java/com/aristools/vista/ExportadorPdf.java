@@ -169,6 +169,11 @@ public final class ExportadorPdf {
         if (proveedor != null) {
             campos.add(new String[]{"Proveedor", proveedor.getNit() + " - " + proveedor.getRazonSocial()});
         }
+        if (m instanceof com.aristools.modelo.Entrada entrada && entrada.getFechaVencimiento() != null) {
+            campos.add(new String[]{"Lote", entrada.getLote()});
+            campos.add(new String[]{"Fecha de vencimiento",
+                entrada.getFechaVencimiento().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"))});
+        }
         agregarSiHay(campos, "Factura o remisión", m.getDocumentoSoporte());
         if (m.getCausaBaja() != null) {
             campos.add(new String[]{"Causa de la baja", m.getCausaBaja().getDescripcion()});

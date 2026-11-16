@@ -30,6 +30,7 @@ public class ProductosPanel extends PanelCatalogo<Producto> {
     private final JTextField txtCosto = new JTextField();
     private final JTextField txtMinimo = new JTextField();
     private final JTextField txtMaximo = new JTextField();
+    private final javax.swing.JCheckBox chkVencimiento = new javax.swing.JCheckBox("Sí, pedir lote y fecha de vencimiento en cada compra");
 
     public ProductosPanel() {
         super("Productos", "Artículos del inventario con su costo y sus umbrales de alerta.");
@@ -78,6 +79,9 @@ public class ProductosPanel extends PanelCatalogo<Producto> {
         agregarCampo("Costo de referencia", txtCosto);
         agregarCampo("Stock mínimo", txtMinimo);
         agregarCampo("Stock máximo", txtMaximo);
+        chkVencimiento.setOpaque(false);
+        chkVencimiento.setFont(Tema.NORMAL);
+        agregarCampo("Controla vencimiento", chkVencimiento);
         agregarNota("Deje el mínimo o el máximo vacío para usar los umbrales generales de Configuración. "
                 + "El stock no se edita aquí: solo cambia con movimientos autorizados.");
     }
@@ -92,6 +96,7 @@ public class ProductosPanel extends PanelCatalogo<Producto> {
         txtCosto.setText(p.getCostoReferencia() == null ? "" : p.getCostoReferencia().toPlainString());
         txtMinimo.setText(p.getStockMinimo() == null ? "" : p.getStockMinimo().toString());
         txtMaximo.setText(p.getStockMaximo() == null ? "" : p.getStockMaximo().toString());
+        chkVencimiento.setSelected(p.isControlaVencimiento());
     }
 
     private void seleccionarCategoria(Categoria categoria) {
@@ -111,6 +116,7 @@ public class ProductosPanel extends PanelCatalogo<Producto> {
         }
         cmbCategoria.setSelectedIndex(-1);
         cmbUnidad.setSelectedIndex(0);
+        chkVencimiento.setSelected(false);
     }
 
     @Override
@@ -122,6 +128,7 @@ public class ProductosPanel extends PanelCatalogo<Producto> {
                 leerCosto(), enteroOpcional(txtMinimo.getText(), "stock mínimo"),
                 enteroOpcional(txtMaximo.getText(), "stock máximo"),
                 seleccionado == null ? EstadoRegistro.ACTIVO : seleccionado.getEstado());
+        p.setControlaVencimiento(chkVencimiento.isSelected());
         controlador.guardarProducto(p);
     }
 

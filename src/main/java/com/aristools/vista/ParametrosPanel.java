@@ -32,6 +32,7 @@ public class ParametrosPanel extends JPanel implements Recargable {
     private final JTextField txtInactividad = new JTextField();
     private final JTextField txtRevision = new JTextField();
     private final JTextField txtDiasEntrega = new JTextField();
+    private final JTextField txtAvisoVencimiento = new JTextField();
 
     public ParametrosPanel() {
         setLayout(new BorderLayout(0, 18));
@@ -57,6 +58,7 @@ public class ParametrosPanel extends JPanel implements Recargable {
         fila = agregar(tarjeta, fila, "Cierre por inactividad (minutos)", txtInactividad);
         fila = agregar(tarjeta, fila, "Responsable de revisión (PDF)", txtRevision);
         fila = agregar(tarjeta, fila, "Días de entrega por defecto", txtDiasEntrega);
+        fila = agregar(tarjeta, fila, "Aviso de vencimiento (días antes)", txtAvisoVencimiento);
         txtRevision.putClientProperty("JTextField.placeholderText", "Nombre y cargo de quien revisa los reportes");
 
         GridBagConstraints c = new GridBagConstraints();
@@ -115,6 +117,7 @@ public class ParametrosPanel extends JPanel implements Recargable {
         txtInactividad.setText("15");
         txtRevision.setText("Supervisor de Bodega");
         txtDiasEntrega.setText("5");
+        txtAvisoVencimiento.setText("30");
         try {
             for (Parametro p : controlador.listar()) {
                 switch (p.getClave()) {
@@ -125,6 +128,7 @@ public class ParametrosPanel extends JPanel implements Recargable {
                     case "minutos_inactividad" -> txtInactividad.setText(p.getValor());
                     case ParametroControlador.RESPONSABLE_REVISION -> txtRevision.setText(p.getValor());
                     case "dias_entrega_defecto" -> txtDiasEntrega.setText(p.getValor());
+                    case "dias_aviso_vencimiento" -> txtAvisoVencimiento.setText(p.getValor());
                     default -> { }
                 }
             }
@@ -136,11 +140,13 @@ public class ParametrosPanel extends JPanel implements Recargable {
     private void guardar() {
         try {
             int minutos = entero(txtInactividad.getText(), "cierre por inactividad");
+            int aviso = entero(txtAvisoVencimiento.getText(), "aviso de vencimiento");
             controlador.guardar(txtNombre.getText(),
                     entero(txtMinimo.getText(), "stock mínimo por defecto"),
                     entero(txtMaximo.getText(), "stock máximo por defecto"),
                     entero(txtVigencia.getText(), "vigencia de la contraseña"),
                     minutos, txtRevision.getText(), entero(txtDiasEntrega.getText(), "días de entrega por defecto"));
+            controlador.guardarDiasAvisoVencimiento(aviso);
             MonitorInactividad.aplicar(minutos);   // el nuevo tiempo rige desde ya, sin cerrar sesión
             Tema.info(this, "Configuración guardada correctamente.");
             recargar();

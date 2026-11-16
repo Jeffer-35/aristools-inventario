@@ -22,7 +22,7 @@ cd aristools-inventario
 mvn test
 ```
 
-Resultado esperado: `Tests run: 65, Failures: 0, Errors: 0` y `BUILD SUCCESS`, en cualquier computador con JDK 17 y Maven, sin instalar MySQL y sin contraseñas.
+Resultado esperado: `Tests run: 74, Failures: 0, Errors: 0` y `BUILD SUCCESS`, en cualquier computador con JDK 17 y Maven, sin instalar MySQL y sin contraseñas.
 
 ---
 
@@ -92,6 +92,24 @@ La opción *Sugerencia de compra* (Jefe de Compras y Administrador) dice qué pe
 **Ejemplo:** salen 2 tornillos por día, el proveedor tarda 5 días y el mínimo es 10: el punto de reorden es 2 × 5 + 10 = 20. Si quedan 18 y el máximo es 100, se sugiere pedir 82.
 
 La columna *Pedir* se puede cambiar. Con lo que se decide pedir se genera la **orden de compra** para un proveedor: se guarda con su número (`OC-000001`) y se imprime en PDF con los datos del proveedor, los productos, el costo de referencia y el total estimado. La orden es solo el pedido: el stock cambia cuando llega la mercancía y se registra la compra con la factura.
+
+### Clasificación ABC y conteo cíclico
+
+La pestaña *Clasificación ABC* de Reportes ordena los productos por el valor de lo que sale de la bodega en un período (unidades × costo):
+
+| Clase | Regla | Qué significa |
+|---|---|---|
+| A | Los que suman hasta el 80 % del valor | Pocos productos que mueven casi todo el dinero: se cuentan más seguido |
+| B | Los que siguen, hasta el 95 % | Control intermedio |
+| C | El resto y los que no tuvieron salidas | Control básico |
+
+En *Inventario físico* se elige el **tipo de conteo**: general (toda la bodega) o **cíclico** (solo una clase ABC, con el consumo de los últimos 90 días). La casilla **A ciegas** genera la plantilla sin el stock del sistema, para que quien cuenta no se guíe por ese número. Cada conteo queda en la pestaña **Historial** con su **exactitud** (productos que coincidieron ÷ productos contados), haya o no diferencias.
+
+### Vencimientos (FEFO)
+
+Los productos marcados con **Controla vencimiento** piden el **lote** y la **fecha de vencimiento** en cada compra, y no se puede recibir mercancía ya vencida. La opción *Vencimientos* (todos los roles) lista los lotes que siguen en bodega ordenados por fecha: el primero es el que debe salir primero (FEFO: *First Expired, First Out*). Los vencidos salen en rojo y los que vencen dentro de los días de aviso (parámetro *Aviso de vencimiento*, 30 por defecto), en naranja; la tarjeta *Lotes por vencer* de Inicio los cuenta.
+
+El sistema no lleva el stock lote por lote: lo **estima** repartiendo las unidades que hay en bodega con la misma regla FEFO. **Ejemplo:** entran 10 unidades que vencen en enero y 10 que vencen en marzo; si quedan 12, se asume que 10 son del lote de marzo y 2 del de enero.
 
 ### Documentos de soporte
 
@@ -198,20 +216,21 @@ aristools-inventario/
 │   ├── actualizar_bd_v5.sql     #   v5: kardex valorizado y responsable de revisión
 │   ├── actualizar_bd_v6.sql     #   v6: causas de baja y bodega de cuarentena
 │   ├── actualizar_bd_v7.sql     #   v7: días de entrega y órdenes de compra
+│   ├── actualizar_bd_v8.sql     #   v8: vencimientos e historial de conteos
 │   ├── respaldar_bd.bat         # Respaldo (RNF-007)
 │   └── restaurar_bd.bat         # Restauración (RNF-007)
 ├── src/main/java/com/aristools/
 │   ├── Main.java                # Punto de entrada del programa
 │   ├── conexion/    ConexionDB
 │   ├── modelo/      31 clases (entidades, Movimiento y sus 4 subclases, enumeraciones y auxiliares)
-│   ├── dao/         14 DAO
+│   ├── dao/         15 DAO
 │   ├── seguridad/   Accion, Permisos, PasswordUtil, Sesion
 │   ├── controlador/ 16 clases (controladores, GestorInventario y Auditoria)
 │   ├── util/        NegocioException, Validador, Cambios, Formato, ReportePdf
 │   └── vista/       34 clases (ventanas, paneles y diálogos Swing)
 ├── src/main/resources/
 │   └── db.properties.ejemplo    # Plantilla de la conexión a MySQL (copiar como db.properties)
-├── src/test/java/com/aristools/ # 65 pruebas JUnit
+├── src/test/java/com/aristools/ # 74 pruebas JUnit
 ├── src/test/resources/
 │   └── db-pruebas.properties    # Conexión de las pruebas: H2 en memoria
 ├── ejecutar_aristools.bat       # Lanzador del .jar (sin ventana de consola)
@@ -230,7 +249,7 @@ aristools-inventario/
 
 ## 6. Base de datos
 
-Esquema `aristools` (InnoDB, utf8mb4) con **14 tablas**, 14 llaves primarias, **18 llaves foráneas**, restricciones `UNIQUE` y `CHECK`, 5 índices y 2 disparadores.
+Esquema `aristools` (InnoDB, utf8mb4) con **16 tablas**, 16 llaves primarias, **22 llaves foráneas**, restricciones `UNIQUE` y `CHECK`, 5 índices y 2 disparadores.
 
 | Grupo | Tablas |
 |---|---|
@@ -267,6 +286,7 @@ En MySQL Workbench, ejecutar en este orden:
 | `actualizar_bd_v5.sql` | Kardex valorizado: `costo_promedio` en `producto`, `costo_unitario` en `movimiento_inventario` y parámetro `responsable_revision` |
 | `actualizar_bd_v6.sql` | Averías: `causa_baja` en `movimiento_inventario`, `es_cuarentena` en `bodega` y la bodega de cuarentena |
 | `actualizar_bd_v7.sql` | Compras: `dias_entrega` en `proveedor`, tablas `orden_compra` y `orden_compra_detalle` y parámetro `dias_entrega_defecto` |
+| `actualizar_bd_v8.sql` | Vencimientos y conteos: `controla_vencimiento` en `producto`, `lote` y `fecha_vencimiento` en `movimiento_inventario`, tablas `conteo` y `conteo_detalle` y parámetro `dias_aviso_vencimiento` |
 
 Cada integrante ejecuta los scripts en su propio MySQL: GitHub comparte el código, no la base de datos.
 
@@ -326,7 +346,7 @@ Contraseña de todos: `Aristools2026*`
 
 ---
 
-## 8. Pruebas automatizadas (65)
+## 8. Pruebas automatizadas (74)
 
 ```
 mvn test
@@ -355,6 +375,8 @@ Las pruebas usan **H2**, una base de datos en memoria que Maven descarga sola (l
 | `ModeloTest` | 23 | Herencia y polimorfismo, validaciones (cantidad, motivo y causa, proveedor, número de factura y costo en compras, costo inusual), costo promedio ponderado, reglas de la cuarentena, documentos de soporte, totales de pérdidas, sugerencia de compra, orden de compra, segregación de funciones, bloqueo al tercer intento, umbrales y conteo físico |
 | `PerdidasTest` | 2 | Flujo completo de una avería: cuarentena, baja con causa, autorización, acta de baja y reporte de pérdidas en pesos; el reporte solo lo ven Supervisor y Administrador |
 | `CompraTest` | 2 | Sugerencia de la pintura bajo su mínimo, orden de compra guardada con su total; la sugerencia solo la usan Jefe de Compras y Administrador |
+| `AbcYVencimientoTest` | 5 | Clasificación ABC (80 % / 95 %), reparto FEFO del stock entre lotes, estado del lote según los días de aviso, lote y fecha obligatorios en la compra, exactitud del conteo |
+| `ConteoYVencimientoTest` | 4 | Compra con lote que aparece en Vencimientos al autorizarse, clasificación ABC de todos los productos, conteo a ciegas guardado en el historial y plantilla cíclica por clase |
 | `KardexValorizadoTest` | 1 | Flujo completo: costo sugerido de la última compra, compra registrada y autorizada por otro usuario, promedio recalculado, salida valorada y kardex en pesos |
 | `FormatoTest` | 3 | Forma de mostrar y de leer valores en pesos |
 | `ReportePdfTest` | 3 | El reporte trae encabezado, datos, resumen y responsables; el documento de soporte trae número, datos y responsables; un reporte largo ocupa varias páginas |
@@ -395,10 +417,11 @@ Ambos detectan automáticamente la carpeta de MySQL Server 8.x o 9.x en `C:\Prog
 | 13 | Kardex valorizado (costo promedio ponderado) y reportes en PDF | ✅ |
 | 14 | Averías con cuarentena, causas de baja, reporte de pérdidas y documentos de soporte | ✅ |
 | 15 | Sugerencia de compra y orden de compra en PDF | ✅ |
+| 16 | Clasificación ABC, conteo cíclico y a ciegas, historial de conteos y vencimientos (FEFO) | ✅ |
 
 ### Mejoras planeadas para la entrega final
 
-Clasificación ABC con conteo cíclico, control de vencimientos (FEFO), control mensual, tablero de indicadores (KPI) y respaldo automático.
+Control mensual, tablero de indicadores (KPI) y respaldo automático.
 
 **Trabajo futuro (fuera del alcance):** base de datos en red o en la nube, control de stock por lote y lector de código de barras.
 

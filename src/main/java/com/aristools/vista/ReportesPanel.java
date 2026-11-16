@@ -5,6 +5,7 @@ import com.aristools.controlador.ProductoControlador;
 import com.aristools.controlador.ProveedorControlador;
 import com.aristools.controlador.ReporteControlador;
 import com.aristools.modelo.Bodega;
+import com.aristools.modelo.ClasificacionAbc;
 import com.aristools.modelo.CambioStock;
 import com.aristools.modelo.EstadoMovimiento;
 import com.aristools.modelo.FiltroMovimiento;
@@ -55,6 +56,9 @@ import javax.swing.table.DefaultTableModel;
  * Desde la pestaña Movimientos se imprime el documento de soporte de un
  * movimiento autorizado. La pestaña Pérdidas (Supervisor y Administrador)
  * muestra cuánto se perdió en el período, con totales por causa y por bodega.
+ *
+ * La pestaña Clasificación ABC ordena los productos por el valor que sale de
+ * la bodega: los de clase A son los que más control necesitan.
  */
 public class ReportesPanel extends JPanel implements Recargable {
 
@@ -100,6 +104,14 @@ public class ReportesPanel extends JPanel implements Recargable {
             "Cantidad", "Costo unit.", "Valor perdido", "Registró", "Autorizó");
     private final DefaultTableModel pTotales = modelo("Totales", "Nombre", "Bajas", "Unidades", "Valor perdido");
 
+    // Pestaña Clasificación ABC
+    private final CampoFecha aDesde = new CampoFecha();
+    private final CampoFecha aHasta = new CampoFecha();
+    private final JLabel aResumen = new JLabel(" ");
+    private List<String> aDetalles = new ArrayList<>();
+    private final DefaultTableModel aModelo = modelo("Clase", "Código", "Producto", "Unidades que salieron",
+            "Valor consumido", "% del total", "% acumulado");
+
     public ReportesPanel() {
         setLayout(new BorderLayout(0, 10));
         setBackground(Tema.FONDO);
@@ -115,11 +127,58 @@ public class ReportesPanel extends JPanel implements Recargable {
         if (Permisos.puede(Sesion.getUsuario().getRol(), Accion.VER_PERDIDAS)) {
             pestanas.addTab("Pérdidas", crearPerdidas());   // solo Supervisor y Administrador
         }
+        pestanas.addTab("Clasificación ABC", crearAbc());
         add(textos, BorderLayout.NORTH);
         add(pestanas, BorderLayout.CENTER);
     }
 
     // ---------- Construcción de las pestañas ----------
+
+    private JPanel crearAbc() {
+        JButton consultar = Tema.botonPrincipal("Clasificar");
+        JButton exportar = Tema.botonSecundario("Exportar a Excel (CSV)");
+        JButton imprimir = Tema.botonSecundario("Imprimir PDF");
+        consultar.addActionListener(e -> consultarAbc());
+        exportar.addActionListener(e -> ejecutar(() -> ExportadorCsv.exportar(this, aModelo, "clasificacion_abc")));
+        imprimir.addActionListener(e -> ejecutar(() -> ExportadorPdf.exportar(this, aModelo, "Clasificación ABC del inventario",
+                aDetalles, aResumen.getText(), "clasificacion_abc")));
+        BarraFiltros filtros = new BarraFiltros(3);
+        filtros.agregar("Desde:", aDesde);
+        filtros.agregar("Hasta:", aHasta);
+        filtros.agregar("Período:", CampoFecha.accesosRapidos(aDesde, aHasta));
+        filtros.agregarBotones(consultar, exportar, imprimir);
+        return pestana(filtros, tabla(aModelo, new int[]{60, 90, 300, 150, 140, 100, 110}), aResumen);
+    }
+
+    /** Sin fechas se clasifican los últimos 90 días, que es lo que usa el conteo cíclico. */
+    private void consultarAbc() {
+        ejecutar(() -> {
+            LocalDate desde = fecha(aDesde, "Desde");
+            LocalDate hasta = fecha(aHasta, "Hasta");
+            if (desde == null && hasta == null) {
+                hasta = LocalDate.now();
+                desde = hasta.minusDays(90);
+                aDesde.setFecha(desde);
+                aHasta.setFecha(hasta);
+            }
+            aModelo.setRowCount(0);
+            int[] cuantos = new int[3];
+            BigDecimal total = BigDecimal.ZERO;
+            for (ClasificacionAbc c : reportes.clasificacionAbc(desde, hasta)) {
+                aModelo.addRow(new Object[]{String.valueOf(c.getClase()), c.getProducto().getCodigo(),
+                    c.getProducto().getNombre(), c.getUnidades(), Formato.pesos(c.getValor()),
+                    c.getPorcentaje().toPlainString().replace('.', ',') + " %",
+                    c.getAcumulado().toPlainString().replace('.', ',') + " %"});
+                cuantos[c.getClase() - 'A']++;
+                total = total.add(c.getValor());
+            }
+            aDetalles = List.of(periodo(aDesde, aHasta),
+                    "Valor consumido = unidades que salieron x costo con que se valoraron (salidas autorizadas).",
+                    "Clase A: hasta el 80 % del valor · Clase B: hasta el 95 % · Clase C: el resto y los que no tuvieron salidas.");
+            aResumen.setText("A: " + cuantos[0] + " producto(s) · B: " + cuantos[1] + " · C: " + cuantos[2]
+                    + " · Valor consumido: " + Formato.pesos(total));
+        });
+    }
 
     private JPanel crearKardex() {
         JButton generar = Tema.botonPrincipal("Generar kardex");

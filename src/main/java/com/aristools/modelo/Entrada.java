@@ -3,6 +3,7 @@ package com.aristools.modelo;
 import com.aristools.util.NegocioException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.util.List;
 
 /**
@@ -13,11 +14,16 @@ import java.util.List;
  *
  * Kardex valorizado: la compra es el único movimiento que cambia el costo
  * promedio del producto (método del costo promedio ponderado).
+ *
+ * Vencimientos: si el producto controla vencimiento, la compra exige el lote
+ * y la fecha de vencimiento que vienen marcados en la mercancía.
  */
 public class Entrada extends Movimiento {
 
     private Bodega bodegaDestino;
     private Proveedor proveedor;   // obligatorio en compras
+    private String lote;                  // lote del fabricante (productos con vencimiento)
+    private LocalDate fechaVencimiento;   // fecha en que vence ese lote
 
     public Entrada() {
         super();
@@ -54,6 +60,16 @@ public class Entrada extends Movimiento {
         }
         if (esCompra() && (costoUnitario == null || costoUnitario.compareTo(BigDecimal.ZERO) <= 0)) {
             throw new NegocioException("Una compra exige el costo unitario de la factura, mayor que cero.");
+        }
+        if (esCompra() && producto.isControlaVencimiento()) {
+            if (lote == null || lote.isBlank() || fechaVencimiento == null) {
+                throw new NegocioException("El producto " + producto.getNombre() + " controla vencimiento: "
+                        + "escriba el lote y la fecha de vencimiento que trae la mercancía.");
+            }
+            if (!fechaVencimiento.isAfter(LocalDate.now())) {
+                throw new NegocioException("El lote " + lote + " de " + producto.getNombre()
+                        + " ya está vencido: no se puede recibir mercancía vencida.");
+            }
         }
     }
 
@@ -126,6 +142,12 @@ public class Entrada extends Movimiento {
 
     public Bodega getBodegaDestino() { return bodegaDestino; }
     public void setBodegaDestino(Bodega bodegaDestino) { this.bodegaDestino = bodegaDestino; }
+
+    public String getLote() { return lote; }
+    public void setLote(String lote) { this.lote = lote; }
+
+    public LocalDate getFechaVencimiento() { return fechaVencimiento; }
+    public void setFechaVencimiento(LocalDate fechaVencimiento) { this.fechaVencimiento = fechaVencimiento; }
 
     public Proveedor getProveedor() { return proveedor; }
     public void setProveedor(Proveedor proveedor) { this.proveedor = proveedor; }

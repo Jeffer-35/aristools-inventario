@@ -24,6 +24,16 @@ public class PanelControlador {
             datos.put("Bajo stock", alertaDAO.contarActivas(TipoAlerta.BAJO_STOCK));
             datos.put("Sobrestock", alertaDAO.contarActivas(TipoAlerta.SOBRESTOCK));
             datos.put("Movimientos pendientes", movimientoDAO.contarPendientes());
+            // Lotes vencidos o por vencer que todavía tienen unidades en bodega
+            int aviso = new ParametroControlador().diasAvisoVencimiento();
+            java.time.LocalDate hoy = java.time.LocalDate.now();
+            int porVencer = 0;
+            for (com.aristools.modelo.LoteVencimiento l : new com.aristools.dao.ReporteDAO().lotesConSaldo()) {
+                if (!com.aristools.modelo.LoteVencimiento.VIGENTE.equals(l.estado(hoy, aviso))) {
+                    porVencer++;
+                }
+            }
+            datos.put("Lotes por vencer", porVencer);
             return datos;
         } catch (SQLException e) {
             throw NegocioException.deBaseDeDatos(e);

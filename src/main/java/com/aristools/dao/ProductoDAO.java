@@ -22,7 +22,7 @@ public class ProductoDAO {
 
     private static final String SELECT =
             "SELECT p.id_producto, p.codigo, p.nombre, p.descripcion, p.unidad_medida, p.costo_referencia, "
-          + "p.costo_promedio, p.stock_minimo, p.stock_maximo, p.estado, c.id_categoria, c.nombre AS cat_nombre, "
+          + "p.costo_promedio, p.stock_minimo, p.stock_maximo, p.estado, p.controla_vencimiento, c.id_categoria, c.nombre AS cat_nombre, "
           + "c.descripcion AS cat_desc, c.estado AS cat_estado "
           + "FROM producto p JOIN categoria c ON c.id_categoria = p.id_categoria ";
 
@@ -62,12 +62,12 @@ public class ProductoDAO {
     /** El producto nuevo arranca con su costo de referencia como costo promedio. */
     public int insertar(Producto p) throws SQLException {
         String sql = "INSERT INTO producto (codigo, nombre, descripcion, id_categoria, unidad_medida, "
-                   + "costo_referencia, stock_minimo, stock_maximo, estado, costo_promedio) "
-                   + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                   + "costo_referencia, stock_minimo, stock_maximo, estado, controla_vencimiento, costo_promedio) "
+                   + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         try (Connection con = ConexionDB.obtener();
              PreparedStatement ps = con.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             llenar(ps, p);
-            ps.setBigDecimal(10, p.getCostoReferencia());
+            ps.setBigDecimal(11, p.getCostoReferencia());
             ps.executeUpdate();
             try (ResultSet rs = ps.getGeneratedKeys()) {
                 rs.next();
@@ -78,12 +78,13 @@ public class ProductoDAO {
 
     public void actualizar(Producto p) throws SQLException {
         String sql = "UPDATE producto SET codigo = ?, nombre = ?, descripcion = ?, id_categoria = ?, "
-                   + "unidad_medida = ?, costo_referencia = ?, stock_minimo = ?, stock_maximo = ?, estado = ? "
+                   + "unidad_medida = ?, costo_referencia = ?, stock_minimo = ?, stock_maximo = ?, estado = ?, "
+                   + "controla_vencimiento = ? "
                    + "WHERE id_producto = ?";
         try (Connection con = ConexionDB.obtener();
              PreparedStatement ps = con.prepareStatement(sql)) {
             llenar(ps, p);
-            ps.setInt(10, p.getIdProducto());
+            ps.setInt(11, p.getIdProducto());
             ps.executeUpdate();
         }
     }
@@ -143,7 +144,7 @@ public class ProductoDAO {
         }
     }
 
-    // Pasa los 9 campos del producto a la sentencia (mismo orden en INSERT y UPDATE).
+    // Pasa los 10 campos del producto a la sentencia (mismo orden en INSERT y UPDATE).
     private void llenar(PreparedStatement ps, Producto p) throws SQLException {
         ps.setString(1, p.getCodigo());
         ps.setString(2, p.getNombre());
@@ -154,6 +155,7 @@ public class ProductoDAO {
         ps.setObject(7, p.getStockMinimo(), Types.INTEGER);   // null = usa el umbral general
         ps.setObject(8, p.getStockMaximo(), Types.INTEGER);
         ps.setString(9, p.getEstado().name());
+        ps.setBoolean(10, p.isControlaVencimiento());
     }
 
     // Convierte la fila actual en un Producto con su Categoria.
@@ -165,6 +167,7 @@ public class ProductoDAO {
                 rs.getObject("stock_minimo", Integer.class), rs.getObject("stock_maximo", Integer.class),
                 EstadoRegistro.valueOf(rs.getString("estado")));
         p.setCostoPromedio(rs.getBigDecimal("costo_promedio"));
+        p.setControlaVencimiento(rs.getBoolean("controla_vencimiento"));
         return p;
     }
 }

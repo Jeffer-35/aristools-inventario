@@ -46,6 +46,33 @@ public class ParametroControlador {
         return porDefecto;
     }
 
+    /** Días de anticipación con que se avisa que un lote está por vencer (30 si no está configurado). */
+    public int diasAvisoVencimiento() {
+        try {
+            return Integer.parseInt(valor("dias_aviso_vencimiento", "30").trim());
+        } catch (NumberFormatException e) {
+            return 30;
+        }
+    }
+
+    /** Cambia los días de aviso de vencimiento (lo usa la pantalla de Configuración). */
+    public void guardarDiasAvisoVencimiento(int dias) {
+        Sesion.exigir(Accion.CONFIGURAR_PARAMETROS);
+        if (dias < 1 || dias > 365) {
+            throw new NegocioException("Los días de aviso de vencimiento deben estar entre 1 y 365.");
+        }
+        int antes = diasAvisoVencimiento();
+        try (Connection con = ConexionDB.obtener()) {
+            parametroDAO.guardar(con, "dias_aviso_vencimiento", String.valueOf(dias),
+                    "Días de anticipación con que se avisa que un lote está por vencer");
+            if (antes != dias) {
+                Auditoria.registrar("CAMBIO_PARAMETROS", "días de aviso de vencimiento: " + antes + " → " + dias);
+            }
+        } catch (SQLException e) {
+            throw NegocioException.deBaseDeDatos(e);
+        }
+    }
+
     /** Guarda los tres parámetros juntos en una transacción. */
     public void guardar(String nombre, int minimo, int maximo) {
         Sesion.exigir(Accion.CONFIGURAR_PARAMETROS);

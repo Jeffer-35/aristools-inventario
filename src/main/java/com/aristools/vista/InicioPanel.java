@@ -123,7 +123,7 @@ public class InicioPanel extends JPanel {
     private JPanel tarjeta(String titulo, int valor) {
         Color color = switch (titulo) {
             case "Bajo stock" -> Tema.ROJO;
-            case "Sobrestock" -> Tema.NARANJA;
+            case "Sobrestock", "Lotes por vencer" -> Tema.NARANJA;
             case "Movimientos pendientes" -> Tema.AZUL_TABLA;
             default -> Tema.VERDE;
         };

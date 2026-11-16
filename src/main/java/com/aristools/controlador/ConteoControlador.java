@@ -1,12 +1,16 @@
 package com.aristools.controlador;
 
 import com.aristools.dao.BodegaDAO;
+import com.aristools.dao.ConteoDAO;
 import com.aristools.dao.ExistenciaDAO;
 import com.aristools.dao.ProductoDAO;
+import com.aristools.dao.ReporteDAO;
 import com.aristools.dao.TipoMovimientoDAO;
 import com.aristools.modelo.Ajuste;
 import com.aristools.modelo.Bodega;
 import com.aristools.modelo.CausaBaja;
+import com.aristools.modelo.ClasificacionAbc;
+import com.aristools.modelo.Conteo;
 import com.aristools.modelo.Existencia;
 import com.aristools.modelo.LineaConteo;
 import com.aristools.modelo.Producto;
@@ -19,6 +23,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -32,31 +37,63 @@ import java.util.Set;
  * 2) El almacenista escribe lo que contó (en Excel).
  * 3) Se carga el archivo: se procesa completo o se rechaza completo.
  * 4) Diferencia = contado − sistema: positivos se aplican, negativos esperan al Supervisor.
+ *
+ * Mejoras de control:
+ * - Conteo cíclico: en vez de contar toda la bodega, se cuenta solo una clase
+ *   ABC (los de clase A más seguido, porque son los que más valor mueven).
+ * - Conteo a ciegas: la plantilla no trae el stock del sistema, para que
+ *   quien cuenta no se guíe por ese número.
+ * - Historial: cada conteo queda guardado, haya o no diferencias.
  */
 public class ConteoControlador {
 
     private static final String SEPARADOR = ";";   // Excel en español usa punto y coma
     private static final String BOM = "\uFEFF";    // para que Excel muestre bien las tildes
     private static final String ENCABEZADO = "codigo;producto;stock_sistema;cantidad_contada";
+    private static final String ENCABEZADO_CIEGO = "codigo;producto;cantidad_contada";
+    private static final int DIAS_ABC = 90;        // período con que se clasifican los productos
 
     private final ExistenciaDAO existenciaDAO = new ExistenciaDAO();
     private final ProductoDAO productoDAO = new ProductoDAO();
     private final BodegaDAO bodegaDAO = new BodegaDAO();
     private final TipoMovimientoDAO tipoDAO = new TipoMovimientoDAO();
     private final GestorInventario gestor = new GestorInventario();
+    private final ReporteDAO reporteDAO = new ReporteDAO();
+    private final ConteoDAO conteoDAO = new ConteoDAO();
 
     /** Escribe la plantilla con todos los productos activos y su stock en la bodega. */
     public void generarPlantilla(int idBodega, File archivo) {
+        generarPlantilla(idBodega, archivo, null, false);
+    }
+
+    /**
+     * Escribe la plantilla de conteo.
+     *
+     * @param claseAbc null para toda la bodega (conteo general); 'A', 'B' o 'C'
+     *                 para contar solo esa clase (conteo cíclico)
+     * @param aCiegas  true para no escribir la columna stock_sistema
+     * @return número de productos de la plantilla
+     */
+    public int generarPlantilla(int idBodega, File archivo, Character claseAbc, boolean aCiegas) {
         Sesion.exigir(Accion.REALIZAR_CONTEO);
         try {
+            Set<String> codigosDeLaClase = claseAbc == null ? null : codigosDeClase(claseAbc);
             List<String> lineas = new ArrayList<>();
-            lineas.add(BOM + ENCABEZADO);
+            lineas.add(BOM + (aCiegas ? ENCABEZADO_CIEGO : ENCABEZADO));
             for (Existencia e : existenciaDAO.listarPorBodega(idBodega)) {
+                if (codigosDeLaClase != null && !codigosDeLaClase.contains(e.getProducto().getCodigo())) {
+                    continue;                               // conteo cíclico: solo la clase pedida
+                }
                 lineas.add(e.getProducto().getCodigo() + SEPARADOR
                         + e.getProducto().getNombre().replace(SEPARADOR, ",") + SEPARADOR
-                        + e.getCantidad() + SEPARADOR);
+                        + (aCiegas ? "" : e.getCantidad() + SEPARADOR));
+            }
+            if (lineas.size() == 1) {
+                throw new NegocioException("No hay productos de clase " + claseAbc + " para contar. "
+                        + "Revise la clasificación ABC en Reportes.");
             }
             Files.write(archivo.toPath(), lineas, StandardCharsets.UTF_8);
+            return lineas.size() - 1;
         } catch (java.sql.SQLException e) {
             throw NegocioException.deBaseDeDatos(e);
         } catch (IOException e) {
@@ -97,7 +134,7 @@ public class ConteoControlador {
                 continue;                                   // encabezado o línea vacía
             }
             String[] campos = fila.split(fila.contains(SEPARADOR) ? SEPARADOR : ",", -1);
-            if (campos.length < 4) {
+            if (campos.length < 3) {
                 errores.add("Línea " + numero + ": faltan columnas.");
                 continue;
             }
@@ -111,7 +148,8 @@ public class ConteoControlador {
                 errores.add("Línea " + numero + ": el código " + codigo + " está repetido.");
                 continue;
             }
-            String contado = campos[3].trim();
+            // Con stock_sistema lo contado va en la 4.ª columna; en la plantilla a ciegas, en la 3.ª
+            String contado = campos[campos.length >= 4 ? 3 : 2].trim();
             if (!contado.matches("\\d+")) {
                 errores.add("Línea " + numero + ": la cantidad contada de " + codigo
                         + (contado.isEmpty() ? " está vacía." : " no es un número entero mayor o igual a cero."));
@@ -128,6 +166,76 @@ public class ConteoControlador {
             throw new NegocioException("El archivo no tiene productos contados.");
         }
         return lineas;
+    }
+
+    // Códigos de los productos que hoy son de esa clase ABC (consumo de los últimos 90 días).
+    private Set<String> codigosDeClase(char clase) throws java.sql.SQLException {
+        LocalDate hoy = LocalDate.now();
+        Set<String> codigos = new HashSet<>();
+        for (ClasificacionAbc c : ClasificacionAbc.clasificar(reporteDAO.consumoPorProducto(hoy.minusDays(DIAS_ABC), hoy))) {
+            if (c.getClase() == clase) {
+                codigos.add(c.getProducto().getCodigo());
+            }
+        }
+        return codigos;
+    }
+
+    /**
+     * Guarda el conteo en el historial y genera los ajustes de las diferencias.
+     * A diferencia de generarAjustes, un conteo sin diferencias también se
+     * guarda: es la evidencia de que el inventario está exacto.
+     *
+     * @param claseAbc null si fue un conteo general; la clase contada si fue cíclico
+     * @return el conteo guardado (con cuántos productos tuvieron diferencia)
+     */
+    public Conteo guardarConteo(int idBodega, List<LineaConteo> lineas, Character claseAbc, boolean aCiegas) {
+        Sesion.exigir(Accion.REALIZAR_CONTEO);
+        if (lineas == null || lineas.isEmpty()) {
+            throw new NegocioException("Cargue primero la plantilla con lo contado.");
+        }
+        try {
+            int conDiferencia = (int) lineas.stream().filter(l -> l.diferencia() != 0).count();
+            if (conDiferencia > 0) {
+                generarAjustes(idBodega, lineas);
+            }
+            Conteo conteo = new Conteo(0, bodegaDAO.buscarPorId(idBodega), Sesion.getUsuario().getNombreUsuario(),
+                    LocalDateTime.now(), claseAbc, aCiegas, lineas.size(), conDiferencia);
+            conteoDAO.insertar(conteo, Sesion.getUsuario().getIdUsuario(), lineas);
+            Auditoria.registrar("CONTEO_FISICO", "Conteo " + conteo.tipo() + " en " + conteo.getBodega().getNombre()
+                    + ": " + lineas.size() + " productos, " + conDiferencia + " con diferencia");
+            return conteo;
+        } catch (java.sql.SQLException e) {
+            throw NegocioException.deBaseDeDatos(e);
+        }
+    }
+
+    /** Historial de conteos (del más reciente al más antiguo). @param idBodega null para todas */
+    public List<Conteo> historial(Integer idBodega) {
+        exigirConteoOReportes();
+        try {
+            return conteoDAO.listar(idBodega);
+        } catch (java.sql.SQLException e) {
+            throw NegocioException.deBaseDeDatos(e);
+        }
+    }
+
+    /** Líneas de un conteo del historial. */
+    public List<LineaConteo> detalleConteo(int idConteo) {
+        exigirConteoOReportes();
+        try {
+            return conteoDAO.detalle(idConteo);
+        } catch (java.sql.SQLException e) {
+            throw NegocioException.deBaseDeDatos(e);
+        }
+    }
+
+    // El historial lo ven quien cuenta y los roles que consultan reportes.
+    private void exigirConteoOReportes() {
+        com.aristools.modelo.Usuario u = Sesion.getUsuario();
+        if (u == null || !(com.aristools.seguridad.Permisos.puede(u.getRol(), Accion.REALIZAR_CONTEO)
+                || com.aristools.seguridad.Permisos.puede(u.getRol(), Accion.VER_REPORTES))) {
+            throw new NegocioException("No tiene permiso para consultar el historial de conteos.");
+        }
     }
 
     /**

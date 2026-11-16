@@ -4,10 +4,12 @@ import com.aristools.dao.ExistenciaDAO;
 import com.aristools.dao.MovimientoDAO;
 import com.aristools.dao.ReporteDAO;
 import com.aristools.dao.TipoMovimientoDAO;
+import com.aristools.modelo.ClasificacionAbc;
 import com.aristools.modelo.EstadoMovimiento;
 import com.aristools.modelo.Existencia;
 import com.aristools.modelo.FiltroMovimiento;
 import com.aristools.modelo.LineaKardex;
+import com.aristools.modelo.LoteVencimiento;
 import com.aristools.modelo.Movimiento;
 import com.aristools.modelo.Naturaleza;
 import com.aristools.modelo.TipoMovimiento;
@@ -116,6 +118,40 @@ public class ReporteControlador {
         validarFechas(desde, hasta);
         try {
             return reporteDAO.perdidas(desde, hasta, idBodega);
+        } catch (SQLException e) {
+            throw NegocioException.deBaseDeDatos(e);
+        }
+    }
+
+    /**
+     * Clasificación ABC de los productos activos según el valor de lo que
+     * salió de la bodega en el período (por defecto, los últimos 90 días).
+     * La pueden ver los roles con reportes y quien hace el conteo, porque el
+     * conteo cíclico se arma con ella.
+     */
+    public List<ClasificacionAbc> clasificacionAbc(LocalDate desde, LocalDate hasta) {
+        Usuario u = Sesion.getUsuario();
+        if (u == null || !(Permisos.puede(u.getRol(), Accion.VER_REPORTES)
+                || Permisos.puede(u.getRol(), Accion.REALIZAR_CONTEO))) {
+            throw new NegocioException("No tiene permiso para consultar la clasificación ABC.");
+        }
+        validarFechas(desde, hasta);
+        try {
+            return ClasificacionAbc.clasificar(reporteDAO.consumoPorProducto(desde, hasta));
+        } catch (SQLException e) {
+            throw NegocioException.deBaseDeDatos(e);
+        }
+    }
+
+    /**
+     * Lotes con vencimiento que todavía tienen unidades en bodega, ordenados
+     * por fecha: el primero es el que debe salir primero (FEFO). Lo ven todos
+     * los roles, igual que las existencias.
+     */
+    public List<LoteVencimiento> vencimientos() {
+        Sesion.exigir(Accion.CONSULTAR_EXISTENCIAS);
+        try {
+            return reporteDAO.lotesConSaldo();
         } catch (SQLException e) {
             throw NegocioException.deBaseDeDatos(e);
         }

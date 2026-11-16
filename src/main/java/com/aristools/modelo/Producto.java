@@ -19,6 +19,7 @@ public class Producto {
     private Integer stockMinimo;   // null = usa el umbral general
     private Integer stockMaximo;   // null = usa el umbral general
     private EstadoRegistro estado;
+    private boolean controlaVencimiento;   // true: sus compras exigen lote y fecha de vencimiento
 
     /** Constructor vacío: lo usan los DAO al leer filas de la base de datos. */
     public Producto() {
@@ -151,6 +152,14 @@ public class Producto {
 
     public void setStockMaximo(Integer stockMaximo) {
         this.stockMaximo = stockMaximo;
+    }
+
+    public boolean isControlaVencimiento() {
+        return controlaVencimiento;
+    }
+
+    public void setControlaVencimiento(boolean controlaVencimiento) {
+        this.controlaVencimiento = controlaVencimiento;
     }
 
     public EstadoRegistro getEstado() {

@@ -12,6 +12,7 @@ import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import javax.swing.JButton;
@@ -34,6 +35,9 @@ import javax.swing.table.DefaultTableModel;
  * Para ahorrar digitación, al elegir el producto el campo se llena con el costo
  * de la última compra (o el promedio), y si el costo escrito es muy distinto
  * del promedio se pide confirmación antes de agregarlo.
+ *
+ * Si el producto controla vencimiento, la compra pide además el lote y la
+ * fecha de vencimiento que trae la mercancía (control FEFO).
  */
 public class EntradaPanel extends PanelMovimiento {
 
@@ -46,11 +50,16 @@ public class EntradaPanel extends PanelMovimiento {
     private final JTextField txtCantidad = new JTextField();
     private final JTextField txtCosto = new JTextField();
     private final JLabel lblCostoReferencia = new JLabel(" ");
+    private final JTextField txtLote = new JTextField();
+    private final CampoFecha fVence = new CampoFecha();
+    private final JLabel lblVencimiento = new JLabel(" ");
     private final List<Producto> productosLista = new ArrayList<>();
     private final List<Integer> cantidadesLista = new ArrayList<>();
     private final List<BigDecimal> costosLista = new ArrayList<>();   // null en las devoluciones
+    private final List<String> lotesLista = new ArrayList<>();        // null si el producto no vence
+    private final List<LocalDate> vencimientosLista = new ArrayList<>();
     private final DefaultTableModel modeloLista = new DefaultTableModel(
-            new String[]{"Código", "Producto", "Cantidad", "Costo unit.", "Subtotal"}, 0) {
+            new String[]{"Código", "Producto", "Cantidad", "Costo unit.", "Subtotal", "Lote", "Vence"}, 0) {
         @Override
         public boolean isCellEditable(int f, int c) {
             return false;
@@ -87,6 +96,18 @@ public class EntradaPanel extends PanelMovimiento {
         lblCostoReferencia.setForeground(Tema.TEXTO_SUAVE);
         agregarCampo("Costo de referencia", lblCostoReferencia);
 
+        // Lote y fecha de vencimiento: solo para los productos que controlan vencimiento
+        JPanel lineaLote = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        lineaLote.setOpaque(false);
+        txtLote.setPreferredSize(new Dimension(150, 32));
+        txtLote.putClientProperty("JTextField.placeholderText", "Lote, ej. L-2291");
+        lblVencimiento.setForeground(Tema.TEXTO_SUAVE);
+        lineaLote.add(txtLote);
+        lineaLote.add(new JLabel("Vence:"));
+        lineaLote.add(fVence);
+        lineaLote.add(lblVencimiento);
+        agregarCampo("Lote y vencimiento", lineaLote);
+
         Tema.estilizarTabla(tablaLista);
         tablaLista.getColumnModel().getColumn(1).setPreferredWidth(280);
         JScrollPane scroll = new JScrollPane(tablaLista);
@@ -116,8 +137,12 @@ public class EntradaPanel extends PanelMovimiento {
                 txtCosto.setText("");
             }
             sugerirCosto();
+            avisarVencimiento();
         });
-        cmbProducto.addActionListener(e -> sugerirCosto());
+        cmbProducto.addActionListener(e -> {
+            sugerirCosto();
+            avisarVencimiento();
+        });
 
         JPanel arriba = new JPanel(new BorderLayout());
         arriba.setOpaque(false);
@@ -175,6 +200,20 @@ public class EntradaPanel extends PanelMovimiento {
         return p.getCostoReferencia() != null && p.getCostoReferencia().signum() > 0 ? p.getCostoReferencia() : null;
     }
 
+    /** Indica si el producto elegido pide lote y fecha de vencimiento. */
+    private void avisarVencimiento() {
+        Producto p = (Producto) cmbProducto.getSelectedItem();
+        boolean pide = esCompra() && p != null && p.isControlaVencimiento();
+        txtLote.setEnabled(pide);
+        lblVencimiento.setText(pide ? "Obligatorio: este producto controla vencimiento"
+                : "No aplica para este producto");
+        lblVencimiento.setForeground(pide ? Tema.NARANJA : Tema.TEXTO_SUAVE);
+        if (!pide) {
+            txtLote.setText("");
+            fVence.setFecha(null);
+        }
+    }
+
     private void agregarProducto() {
         Producto p = (Producto) cmbProducto.getSelectedItem();
         if (p == null) {
@@ -182,6 +221,20 @@ public class EntradaPanel extends PanelMovimiento {
             return;
         }
         int cantidad = leerCantidad(txtCantidad.getText());
+        // Productos que vencen: el lote y la fecha se leen de la etiqueta de la mercancía
+        String lote = null;
+        LocalDate vence = null;
+        if (esCompra() && p.isControlaVencimiento()) {
+            lote = textoOpcional(txtLote.getText());
+            vence = fVence.getFecha("fecha de vencimiento");
+            if (lote == null || vence == null) {
+                throw new NegocioException("El producto " + p.getNombre() + " controla vencimiento: "
+                        + "escriba el lote y elija la fecha de vencimiento.");
+            }
+            if (!vence.isAfter(LocalDate.now())) {
+                throw new NegocioException("Esa fecha de vencimiento ya pasó: no se puede recibir mercancía vencida.");
+            }
+        }
         // En la compra el costo es obligatorio; en la devolución no se pide
         BigDecimal costo = esCompra() ? Formato.leerPesos(txtCosto.getText(), "costo unitario") : null;
         // Un costo muy distinto del promedio suele ser un error de digitación (ej. 5.5 en vez de 5.500)
@@ -199,10 +252,16 @@ public class EntradaPanel extends PanelMovimiento {
         productosLista.add(p);
         cantidadesLista.add(cantidad);
         costosLista.add(costo);
+        lotesLista.add(lote);
+        vencimientosLista.add(vence);
         modeloLista.addRow(new Object[]{p.getCodigo(), p.getNombre(), cantidad,
             costo == null ? "—" : Formato.pesos(costo),
-            costo == null ? "—" : Formato.pesos(costo.multiply(BigDecimal.valueOf(cantidad)))});
+            costo == null ? "—" : Formato.pesos(costo.multiply(BigDecimal.valueOf(cantidad))),
+            lote == null ? "—" : lote,
+            vence == null ? "—" : vence.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"))});
         txtCantidad.setText("");
+        txtLote.setText("");
+        fVence.setFecha(null);
         sugerirCosto();
         cmbProducto.requestFocus();
     }
@@ -213,6 +272,8 @@ public class EntradaPanel extends PanelMovimiento {
             productosLista.remove(fila);
             cantidadesLista.remove(fila);
             costosLista.remove(fila);
+            lotesLista.remove(fila);
+            vencimientosLista.remove(fila);
             modeloLista.removeRow(fila);
         }
     }
@@ -228,6 +289,8 @@ public class EntradaPanel extends PanelMovimiento {
             e.setDocumentoSoporte(textoOpcional(txtDocumento.getText()));
             e.setObservacion(textoOpcional(txtObservacion.getText()));
             e.setCostoUnitario(costosLista.get(i));   // costo de la factura (solo compras)
+            e.setLote(lotesLista.get(i));
+            e.setFechaVencimiento(vencimientosLista.get(i));
             entradas.add(e);
         }
         movimientos.registrarEntradas(entradas);   // valida y guarda en una sola transacción
@@ -236,6 +299,8 @@ public class EntradaPanel extends PanelMovimiento {
         productosLista.clear();
         cantidadesLista.clear();
         costosLista.clear();
+        lotesLista.clear();
+        vencimientosLista.clear();
         modeloLista.setRowCount(0);
         txtDocumento.setText("");
         txtObservacion.setText("");

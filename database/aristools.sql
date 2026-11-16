@@ -73,6 +73,7 @@ CREATE TABLE producto (
     stock_minimo      INT           NULL,  -- NULL: usa el umbral por defecto de parametro
     stock_maximo      INT           NULL,
     estado            VARCHAR(10)   NOT NULL DEFAULT 'ACTIVO',
+    controla_vencimiento BOOLEAN    NOT NULL DEFAULT FALSE,  -- TRUE: sus compras exigen lote y fecha de vencimiento
     CONSTRAINT pk_producto PRIMARY KEY (id_producto),
     CONSTRAINT uq_producto_codigo UNIQUE (codigo),
     CONSTRAINT fk_producto_categoria FOREIGN KEY (id_categoria) REFERENCES categoria (id_categoria),
@@ -159,6 +160,8 @@ CREATE TABLE movimiento_inventario (
     costo_unitario       DECIMAL(14,4) NULL,  -- compra: costo de la factura; los demás: costo promedio al aplicarse
     fecha                DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     observacion          VARCHAR(255) NULL,
+    lote                 VARCHAR(30)  NULL,  -- lote del fabricante (compras de productos con vencimiento)
+    fecha_vencimiento    DATE         NULL,  -- fecha en que vence ese lote
     CONSTRAINT pk_movimiento PRIMARY KEY (id_movimiento),
     CONSTRAINT fk_movimiento_producto FOREIGN KEY (id_producto) REFERENCES producto (id_producto),
     CONSTRAINT fk_movimiento_tipo FOREIGN KEY (id_tipo_movimiento) REFERENCES tipo_movimiento (id_tipo_movimiento),
@@ -243,6 +246,37 @@ CREATE TABLE orden_compra_detalle (
     CONSTRAINT ck_detalle_costo CHECK (costo_unitario >= 0)
 ) ENGINE = InnoDB;
 
+-- Historial de conteos físicos: cada vez que se carga un conteo queda guardado
+-- con lo que decía el sistema y lo que se contó, haya o no diferencias.
+CREATE TABLE conteo (
+    id_conteo           INT         NOT NULL AUTO_INCREMENT,
+    id_bodega           INT         NOT NULL,
+    id_usuario          INT         NOT NULL,             -- quien contó
+    fecha               DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    tipo                VARCHAR(10) NOT NULL DEFAULT 'GENERAL',  -- GENERAL: toda la bodega; CICLICO: una clase ABC
+    clase_abc           CHAR(1)     NULL,                 -- clase contada en el conteo cíclico
+    a_ciegas            BOOLEAN     NOT NULL DEFAULT FALSE,  -- TRUE: la plantilla no mostraba el stock del sistema
+    productos_contados  INT         NOT NULL,
+    con_diferencia      INT         NOT NULL,
+    CONSTRAINT pk_conteo PRIMARY KEY (id_conteo),
+    CONSTRAINT fk_conteo_bodega FOREIGN KEY (id_bodega) REFERENCES bodega (id_bodega),
+    CONSTRAINT fk_conteo_usuario FOREIGN KEY (id_usuario) REFERENCES usuario (id_usuario),
+    CONSTRAINT ck_conteo_tipo CHECK (tipo IN ('GENERAL', 'CICLICO')),
+    CONSTRAINT ck_conteo_clase CHECK (clase_abc IS NULL OR clase_abc IN ('A', 'B', 'C')),
+    CONSTRAINT ck_conteo_cantidades CHECK (productos_contados > 0 AND con_diferencia BETWEEN 0 AND productos_contados)
+) ENGINE = InnoDB;
+
+CREATE TABLE conteo_detalle (
+    id_conteo         INT NOT NULL,
+    id_producto       INT NOT NULL,
+    stock_sistema     INT NOT NULL,
+    cantidad_contada  INT NOT NULL,
+    CONSTRAINT pk_conteo_detalle PRIMARY KEY (id_conteo, id_producto),
+    CONSTRAINT fk_conteo_detalle_conteo FOREIGN KEY (id_conteo) REFERENCES conteo (id_conteo),
+    CONSTRAINT fk_conteo_detalle_producto FOREIGN KEY (id_producto) REFERENCES producto (id_producto),
+    CONSTRAINT ck_conteo_detalle_contada CHECK (cantidad_contada >= 0)
+) ENGINE = InnoDB;
+
 -- Roles del sistema (los id quedan: 1 Administrador del Sistema,
 -- 2 Almacenista, 3 Jefe de Compras, 4 Supervisor de Bodega)
 -- Bitácora de auditoría: registro de solo inserción de las acciones sensibles
@@ -298,7 +332,8 @@ INSERT INTO parametro (clave, valor, descripcion) VALUES
 ('dias_vigencia_clave',    '0',   'Días de vigencia de la contraseña (0 = sin vencimiento, recomendación NIST SP 800-63B)'),
 ('minutos_inactividad',    '15',  'Minutos sin actividad para cerrar la sesión (0 = desactivado)'),
 ('responsable_revision',   'Supervisor de Bodega', 'Nombre y cargo de quien revisa los reportes impresos (sale como Revisó en los PDF)'),
-('dias_entrega_defecto',   '5',   'Días de entrega para los proveedores que no tienen los suyos (sugerencia de compra)');
+('dias_entrega_defecto',   '5',   'Días de entrega para los proveedores que no tienen los suyos (sugerencia de compra)'),
+('dias_aviso_vencimiento', '30',  'Días de anticipación con que se avisa que un lote está por vencer');
 
 
 -- Nota para la aplicación:

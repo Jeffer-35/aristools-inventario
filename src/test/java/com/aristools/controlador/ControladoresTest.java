@@ -50,10 +50,11 @@ class ControladoresTest {
     }
 
     @Test
-    void panelPrincipalTieneLasCuatroTarjetas() {
+    void panelPrincipalTieneLasCincoTarjetas() {
         login.iniciarSesion("almacen", CLAVE);
         Map<String, Integer> r = new PanelControlador().resumen();
-        assertEquals(Set.of("Productos activos", "Bajo stock", "Sobrestock", "Movimientos pendientes"), r.keySet());
+        assertEquals(Set.of("Productos activos", "Bajo stock", "Sobrestock", "Movimientos pendientes",
+                "Lotes por vencer"), r.keySet());
         assertTrue(r.get("Productos activos") >= 4);
     }
 

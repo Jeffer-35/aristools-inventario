@@ -41,6 +41,9 @@ INSERT INTO producto (codigo, nombre, descripcion, id_categoria, unidad_medida, 
 ('PIN-001', 'Pintura vinilo blanco 1 gal','Tipo 1 interior/exterior',  3, 'Galón',   48000.00, 8,    40),
 ('ELE-001', 'Cable eléctrico No. 12',     'Rollo de 100 metros',       4, 'Rollo',  185000.00, NULL, NULL);
 
+-- La pintura es un producto con fecha de vencimiento: sus compras piden lote y fecha.
+UPDATE producto SET controla_vencimiento = TRUE WHERE id_producto > 0 AND codigo = 'PIN-001';
+
 -- Inventario inicial. Para respetar la regla "el stock solo cambia por
 -- movimientos" (y que el kardex cuadre), cada existencia inicial se
 -- registra también como un Ajuste positivo autorizado.

@@ -69,7 +69,9 @@ public class ProductoControlador {
                             .campo("unidad", anterior.getUnidadMedida(), p.getUnidadMedida())
                             .campo("costo", anterior.getCostoReferencia(), p.getCostoReferencia())
                             .campo("stock mínimo", anterior.getStockMinimo(), p.getStockMinimo())
-                            .campo("stock máximo", anterior.getStockMaximo(), p.getStockMaximo());
+                            .campo("stock máximo", anterior.getStockMaximo(), p.getStockMaximo())
+                            .campo("controla vencimiento", anterior.isControlaVencimiento() ? "Sí" : "No",
+                                    p.isControlaVencimiento() ? "Sí" : "No");
                     if (c.hayCambios()) {
                         Auditoria.registrar("MODIFICAR_PRODUCTO", p.getCodigo() + " " + p.getNombre() + ": " + c);
                     }
