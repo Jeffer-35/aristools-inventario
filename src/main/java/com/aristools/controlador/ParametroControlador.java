@@ -46,6 +46,16 @@ public class ParametroControlador {
         return porDefecto;
     }
 
+    /** Crea o cambia un parámetro suelto (lo usan los controladores que tienen parámetros propios). */
+    void guardarParametro(String clave, String valor, String descripcion) {
+        Sesion.exigir(Accion.CONFIGURAR_PARAMETROS);
+        try (Connection con = ConexionDB.obtener()) {
+            parametroDAO.guardar(con, clave, valor, descripcion);
+        } catch (SQLException e) {
+            throw NegocioException.deBaseDeDatos(e);
+        }
+    }
+
     /** Días de anticipación con que se avisa que un lote está por vencer (30 si no está configurado). */
     public int diasAvisoVencimiento() {
         try {

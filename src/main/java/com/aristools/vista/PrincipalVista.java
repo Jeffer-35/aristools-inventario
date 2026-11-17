@@ -54,6 +54,7 @@ public class PrincipalVista extends JFrame implements ActionListener {
     public static final String INDICADORES = "Indicadores";
     public static final String CONFIGURACION = "Configuración";
     public static final String BITACORA = "Bitácora";
+    public static final String RESPALDOS = "Respaldos";
     private static final String CERRAR_SESION = "Cerrar sesión";
     private static final String CAMBIAR_CLAVE = "Cambiar mi contraseña";
     private MonitorInactividad monitor;   // cierra la sesión si nadie usa el programa
@@ -83,6 +84,8 @@ public class PrincipalVista extends JFrame implements ActionListener {
         panelContenedor.add(PanelDesplazable.envolver(inicioPanel), INICIO);
         paneles.put(INICIO, inicioPanel);
         mostrar(INICIO);
+        // Respaldo automático de la base, si ya pasaron los días configurados (no frena al usuario)
+        new com.aristools.controlador.RespaldoControlador().respaldoAutomaticoSiToca();
         // Cierre automático de la sesión por inactividad (parámetro minutos_inactividad)
         int minutos = new LoginControlador().minutosInactividad();
         monitor = MonitorInactividad.iniciar(minutos, () -> {
@@ -112,11 +115,12 @@ public class PrincipalVista extends JFrame implements ActionListener {
 
     /** Menú lateral (zona WEST): solo aparecen las opciones permitidas para el rol. */
     private JPanel crearMenuLateral() {
+        // Las opciones van en una zona con barra de desplazamiento (si la pantalla es pequeña) y
+        // "Cambiar mi contraseña" y "Cerrar sesión" quedan fijas abajo, siempre visibles.
         JPanel menu = new JPanel();
         menu.setLayout(new BoxLayout(menu, BoxLayout.Y_AXIS));
         menu.setBackground(Tema.AZUL_OSCURO);
-        menu.setPreferredSize(new Dimension(240, 0));
-        menu.setBorder(BorderFactory.createEmptyBorder(18, 0, 18, 0));
+        menu.setBorder(BorderFactory.createEmptyBorder(18, 0, 6, 0));
 
         JLabel logo = new JLabel("ARISTOOLS", SwingConstants.LEFT);
         logo.setFont(Tema.TITULO);
@@ -147,11 +151,27 @@ public class PrincipalVista extends JFrame implements ActionListener {
         agregarOpcion(menu, INDICADORES, Permisos.puede(r, Accion.VER_REPORTES));
         agregarOpcion(menu, CONFIGURACION, Permisos.puede(r, Accion.CONFIGURAR_PARAMETROS));
         agregarOpcion(menu, BITACORA, Permisos.puede(r, Accion.VER_BITACORA));
+        agregarOpcion(menu, RESPALDOS, Permisos.puede(r, Accion.CONFIGURAR_PARAMETROS));
 
-        menu.add(Box.createVerticalGlue());
-        agregarOpcion(menu, CAMBIAR_CLAVE, true);
-        agregarOpcion(menu, CERRAR_SESION, true);
-        return menu;
+        JPanel fijas = new JPanel();
+        fijas.setLayout(new BoxLayout(fijas, BoxLayout.Y_AXIS));
+        fijas.setBackground(Tema.AZUL_OSCURO);
+        fijas.setBorder(BorderFactory.createEmptyBorder(6, 0, 12, 0));
+        agregarOpcion(fijas, CAMBIAR_CLAVE, true);
+        agregarOpcion(fijas, CERRAR_SESION, true);
+
+        javax.swing.JScrollPane zona = new javax.swing.JScrollPane(menu,
+                javax.swing.ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
+                javax.swing.ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+        zona.setBorder(null);
+        zona.getViewport().setBackground(Tema.AZUL_OSCURO);
+        zona.getVerticalScrollBar().setUnitIncrement(24);
+        JPanel lateral = new JPanel(new BorderLayout());
+        lateral.setBackground(Tema.AZUL_OSCURO);
+        lateral.setPreferredSize(new Dimension(240, 0));
+        lateral.add(zona, BorderLayout.CENTER);
+        lateral.add(fijas, BorderLayout.SOUTH);
+        return lateral;
     }
 
     private void agregarOpcion(JPanel menu, String texto, boolean permitido) {
@@ -165,13 +185,13 @@ public class PrincipalVista extends JFrame implements ActionListener {
         b.setFont(Tema.NORMAL.deriveFont(15f));
         b.setForeground(Tema.BLANCO);
         b.setBackground(Tema.AZUL_OSCURO);
-        b.setBorder(BorderFactory.createEmptyBorder(11, 22, 11, 10));
+        b.setBorder(BorderFactory.createEmptyBorder(9, 22, 9, 10));
         b.setFocusPainted(false);
         b.setContentAreaFilled(true);
         b.setOpaque(true);
         b.setBorderPainted(false);
         b.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        b.setMaximumSize(new Dimension(Integer.MAX_VALUE, 44));
+        b.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
         b.setAlignmentX(LEFT_ALIGNMENT);
         b.putClientProperty("JButton.buttonType", "borderless");
         menu.add(b);
@@ -189,6 +209,35 @@ public class PrincipalVista extends JFrame implements ActionListener {
         } else {
             mostrar(opcion);
         }
+    }
+
+    /**
+     * Después de restaurar un respaldo los datos de la base cambiaron: se descartan las pantallas ya abiertas
+     * (excepto Inicio y Respaldos) para que se vuelvan a crear con los datos restaurados.
+     */
+    public void descartarPantallasAbiertas() {
+        for (String carta : new java.util.ArrayList<>(paneles.keySet())) {
+            if (!INICIO.equals(carta) && !RESPALDOS.equals(carta)) {
+                JPanel viejo = paneles.remove(carta);
+                for (java.awt.Component c : panelContenedor.getComponents()) {
+                    if (c == viejo || (c instanceof javax.swing.JScrollPane sp && sp.getViewport().getView() == viejo)
+                            || (c instanceof javax.swing.JComponent jc && contiene(jc, viejo))) {
+                        panelContenedor.remove(c);
+                    }
+                }
+            }
+        }
+        inicioPanel.actualizar();
+        panelContenedor.revalidate();
+    }
+
+    private static boolean contiene(java.awt.Container padre, java.awt.Component buscado) {
+        for (java.awt.Component c : padre.getComponents()) {
+            if (c == buscado || (c instanceof java.awt.Container h && contiene(h, buscado))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Muestra la carta indicada y resalta su opción en naranja. */
@@ -219,6 +268,7 @@ public class PrincipalVista extends JFrame implements ActionListener {
             case PROVEEDORES -> new ProveedoresPanel();
             case CONFIGURACION -> new ParametrosPanel();
             case BITACORA -> new BitacoraPanel();
+            case RESPALDOS -> new RespaldoPanel();
             case MOVIMIENTOS -> new MovimientosPanel();
             case CONTEO -> new ConteoPanel();
             case AUTORIZAR_ENTRADAS -> new AutorizacionesPanel(Naturaleza.ENTRADA);

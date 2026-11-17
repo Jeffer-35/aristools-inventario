@@ -30,7 +30,7 @@ public class ProductosPanel extends PanelCatalogo<Producto> {
     private final JTextField txtCosto = new JTextField();
     private final JTextField txtMinimo = new JTextField();
     private final JTextField txtMaximo = new JTextField();
-    private final javax.swing.JCheckBox chkVencimiento = new javax.swing.JCheckBox("Sí, pedir lote y fecha de vencimiento en cada compra");
+    private final javax.swing.JCheckBox chkVencimiento = new javax.swing.JCheckBox("Sí, pedir lote y vencimiento");
 
     public ProductosPanel() {
         super("Productos", "Artículos del inventario con su costo y sus umbrales de alerta.");
@@ -40,18 +40,18 @@ public class ProductosPanel extends PanelCatalogo<Producto> {
 
     @Override
     protected String[] columnas() {
-        return new String[]{"Código", "Nombre", "Categoría", "Unidad", "Costo ref.", "Costo prom.", "Mínimo", "Máximo", "Estado"};
+        return new String[]{"Código", "Nombre", "Categoría", "Unidad", "Costo ref.", "Costo prom.", "Mín.", "Máx.", "Estado"};
     }
 
     @Override
     protected int[] anchosColumnas() {
-        return new int[]{80, 240, 110, 80, 90, 100, 70, 70, 80};
+        return new int[]{75, 190, 95, 65, 85, 90, 55, 55, 75};
     }
 
     @Override
     protected Object[] fila(Producto p) {
         return new Object[]{p.getCodigo(), p.getNombre(), p.getCategoria(), p.getUnidadMedida(),
-            p.getCostoReferencia(), Formato.pesos(p.getCostoPromedio()), p.getStockMinimo() == null ? "General" : p.getStockMinimo(),
+            p.getCostoReferencia() == null ? "" : Formato.pesos(p.getCostoReferencia()), Formato.pesos(p.getCostoPromedio()), p.getStockMinimo() == null ? "General" : p.getStockMinimo(),
             p.getStockMaximo() == null ? "General" : p.getStockMaximo(), p.getEstado()};
     }
 

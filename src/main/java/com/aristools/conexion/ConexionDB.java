@@ -38,6 +38,7 @@ public final class ConexionDB {
     private static String URL;
     private static String USUARIO;
     private static String CLAVE;
+    private static String MYSQL_BIN;   // opcional: carpeta bin de MySQL para los respaldos
 
     // Se ejecuta una sola vez, la primera vez que se usa la clase.
     static {
@@ -70,6 +71,7 @@ public final class ConexionDB {
         URL = obligatorio(propiedades, "url");
         USUARIO = obligatorio(propiedades, "usuario");
         CLAVE = propiedades.getProperty("clave", "");
+        MYSQL_BIN = propiedades.getProperty("mysql_bin", "").trim();
     }
 
     // Si están corriendo las pruebas usa db-pruebas.properties (H2 en memoria).
@@ -124,6 +126,13 @@ public final class ConexionDB {
      * @return conexión abierta a MySQL (o a H2 durante las pruebas)
      * @throws SQLException si MySQL no está encendido o los datos son incorrectos
      */
+    // Datos que necesita el respaldo de la base (util.RespaldoBD) para llamar a mysqldump.
+    public static String getUrl() { return URL; }
+    public static String getUsuario() { return USUARIO; }
+    public static String getClave() { return CLAVE; }
+    /** Carpeta bin de MySQL escrita en db.properties (propiedad mysql_bin); vacío si no se escribió. */
+    public static String getMysqlBin() { return MYSQL_BIN; }
+
     public static Connection obtener() throws SQLException {
         return DriverManager.getConnection(URL, USUARIO, CLAVE);
     }

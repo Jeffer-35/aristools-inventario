@@ -333,7 +333,8 @@ INSERT INTO parametro (clave, valor, descripcion) VALUES
 ('minutos_inactividad',    '15',  'Minutos sin actividad para cerrar la sesión (0 = desactivado)'),
 ('responsable_revision',   'Supervisor de Bodega', 'Nombre y cargo de quien revisa los reportes impresos (sale como Revisó en los PDF)'),
 ('dias_entrega_defecto',   '5',   'Días de entrega para los proveedores que no tienen los suyos (sugerencia de compra)'),
-('dias_aviso_vencimiento', '30',  'Días de anticipación con que se avisa que un lote está por vencer');
+('dias_aviso_vencimiento', '30',  'Días de anticipación con que se avisa que un lote está por vencer'),
+('dias_respaldo_automatico', '7', 'Cada cuántos días se hace el respaldo automático de la base (0 = desactivado)');
 
 
 -- Nota para la aplicación:

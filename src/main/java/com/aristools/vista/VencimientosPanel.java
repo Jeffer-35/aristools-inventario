@@ -92,7 +92,7 @@ public class VencimientosPanel extends JPanel implements Recargable {
         scroll.setBorder(BorderFactory.createLineBorder(Tema.BORDE));
 
         lblResumen.setFont(Tema.NEGRITA);
-        JLabel nota = new JLabel("<html><body style='width:780px'>El lote y la fecha se registran en la compra de los "
+        JLabel nota = new JLabel("<html><body style='width:700px'>El lote y la fecha se registran en la compra de los "
                 + "productos marcados con <b>Controla vencimiento</b>. El sistema no lleva el stock lote por lote: "
                 + "reparte las unidades que hay en bodega suponiendo que siempre sale primero lo que vence primero.</body></html>");
         nota.setFont(Tema.NORMAL.deriveFont(12f));

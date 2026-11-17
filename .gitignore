@@ -7,6 +7,7 @@ db.properties
 
 # Respaldos de la base de datos (pueden tener datos reales)
 database/respaldos/
+respaldos/
 
 # Configuración local de los editores
 .vscode/

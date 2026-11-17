@@ -50,6 +50,11 @@ public final class Tema {
             UIManager.put("Component.arc", 8);
             UIManager.put("TextComponent.arc", 8);
             UIManager.put("Table.rowHeight", 28);
+            // Al pasar el mouse por el encabezado de una tabla no debe cambiar a blanco (el texto es blanco)
+            UIManager.put("TableHeader.hoverBackground", AZUL_TABLA);
+            UIManager.put("TableHeader.pressedBackground", AZUL_TABLA);
+            UIManager.put("TableHeader.hoverForeground", BLANCO);
+            UIManager.put("TableHeader.pressedForeground", BLANCO);
         } catch (Exception | LinkageError e) {
             System.err.println("No se pudo cargar FlatLaf: " + e.getMessage());
         }
@@ -108,6 +113,46 @@ public final class Tema {
         render.setFont(NEGRITA);
         render.setBorder(BorderFactory.createEmptyBorder(6, 8, 6, 8));
         encabezado.setDefaultRenderer(render);
+        ponerTextoCompletoAlPasarElMouse(tabla);
+    }
+
+    /**
+     * Cuando un texto de la tabla (o de su encabezado) no cabe y se ve con "...", al pasar el mouse
+     * por encima aparece un recuadro con el texto completo.
+     */
+    private static void ponerTextoCompletoAlPasarElMouse(JTable tabla) {
+        tabla.addMouseMotionListener(new java.awt.event.MouseMotionAdapter() {
+            @Override
+            public void mouseMoved(java.awt.event.MouseEvent e) {
+                int fila = tabla.rowAtPoint(e.getPoint());
+                int col = tabla.columnAtPoint(e.getPoint());
+                String texto = null;
+                if (fila >= 0 && col >= 0) {
+                    Object valor = tabla.getValueAt(fila, col);
+                    Component c = tabla.prepareRenderer(tabla.getCellRenderer(fila, col), fila, col);
+                    if (valor != null && c.getPreferredSize().width > tabla.getCellRect(fila, col, false).width) {
+                        texto = valor.toString();
+                    }
+                }
+                tabla.setToolTipText(texto);
+            }
+        });
+        JTableHeader encabezado = tabla.getTableHeader();
+        encabezado.addMouseMotionListener(new java.awt.event.MouseMotionAdapter() {
+            @Override
+            public void mouseMoved(java.awt.event.MouseEvent e) {
+                int col = encabezado.columnAtPoint(e.getPoint());
+                String texto = null;
+                if (col >= 0) {
+                    Object valor = tabla.getColumnModel().getColumn(col).getHeaderValue();
+                    Component c = encabezado.getDefaultRenderer().getTableCellRendererComponent(tabla, valor, false, false, -1, col);
+                    if (valor != null && c.getPreferredSize().width > encabezado.getHeaderRect(col).width) {
+                        texto = valor.toString();
+                    }
+                }
+                encabezado.setToolTipText(texto);
+            }
+        });
     }
 
     /** Muestra un mensaje de error de negocio (los textos vienen de NegocioException). */

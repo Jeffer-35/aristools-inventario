@@ -8,3 +8,7 @@
 url=jdbc:mysql://localhost:3306/aristools?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=America/Bogota&characterEncoding=UTF-8
 usuario=root
 clave=ESCRIBA_AQUI_SU_CONTRASENA
+
+# Opcional. Solo si la pantalla Respaldos dice que no encuentra mysqldump:
+# escriba aquí la carpeta bin de MySQL (con barras hacia adelante) y quite el #.
+# mysql_bin=C:/Program Files/MySQL/MySQL Server 9.1/bin

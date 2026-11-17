@@ -22,7 +22,7 @@ cd aristools-inventario
 mvn test
 ```
 
-Resultado esperado: `Tests run: 78, Failures: 0, Errors: 0` y `BUILD SUCCESS`, en cualquier computador con JDK 17 y Maven, sin instalar MySQL y sin contraseñas.
+Resultado esperado: `Tests run: 84, Failures: 0, Errors: 0` y `BUILD SUCCESS`, en cualquier computador con JDK 17 y Maven, sin instalar MySQL y sin contraseñas.
 
 ---
 
@@ -134,6 +134,20 @@ La opción *Indicadores* (roles con reportes) es un tablero con nueve tarjetas y
 | Movimientos por autorizar | Entradas y salidas pendientes | 0 |
 
 **Ejemplo de rotación:** salió mercancía por $ 600.000 y el inventario promedio fue (900.000 + 1.100.000) ÷ 2 = $ 1.000.000; la rotación es 0,6 veces y en un mes de 30 días equivale a 30 ÷ 0,6 = 50 días de inventario.
+
+### Respaldos de la base de datos
+
+La opción *Respaldos* (solo el Administrador) crea una copia de seguridad de toda la base en la carpeta `respaldos`, junto al programa, y permite restaurar una anterior. Usa las herramientas oficiales de MySQL (`mysqldump` para respaldar y `mysql` para restaurar), que el sistema busca en `C:\Program Files\MySQL`; si no las encuentra, se escribe la carpeta en `db.properties` con la propiedad `mysql_bin`.
+
+| Función | Cómo funciona |
+|---|---|
+| Respaldo manual | Botón *Crear respaldo ahora*. El archivo lleva fecha y hora en el nombre y nunca se borra solo |
+| Respaldo automático | Al iniciar sesión, si pasaron los días configurados (7 por defecto; 0 lo desactiva), se hace en segundo plano. Se conservan los 10 más recientes |
+| Respaldo de seguridad | Se guarda solo justo antes de restaurar (nombre `aristools_antes_de_restaurar_...`, tipo *Seguridad*), por si se elige el archivo equivocado. Se conservan los 5 más recientes |
+| Restaurar | Reemplaza la base por la del respaldo. Antes guarda un respaldo de seguridad de la base actual |
+| Seguridad | La contraseña de MySQL no va en la línea de comandos: se pasa en un archivo temporal que se borra al terminar |
+
+Los respaldos y las restauraciones quedan en la bitácora. Los archivos `respaldar_bd.bat` y `restaurar_bd.bat` de la carpeta `database` siguen sirviendo para hacerlo sin abrir la aplicación.
 
 ### Documentos de soporte
 
@@ -249,12 +263,12 @@ aristools-inventario/
 │   ├── modelo/      36 clases (entidades, Movimiento y sus 4 subclases, enumeraciones y auxiliares)
 │   ├── dao/         15 DAO
 │   ├── seguridad/   Accion, Permisos, PasswordUtil, Sesion
-│   ├── controlador/ 17 clases (controladores, GestorInventario y Auditoria)
-│   ├── util/        NegocioException, Validador, Cambios, Formato, ReportePdf
-│   └── vista/       36 clases (ventanas, paneles y diálogos Swing)
+│   ├── controlador/ 18 clases (controladores, GestorInventario y Auditoria)
+│   ├── util/        NegocioException, Validador, Cambios, Formato, ReportePdf, RespaldoBD
+│   └── vista/       37 clases (ventanas, paneles y diálogos Swing)
 ├── src/main/resources/
 │   └── db.properties.ejemplo    # Plantilla de la conexión a MySQL (copiar como db.properties)
-├── src/test/java/com/aristools/ # 78 pruebas JUnit
+├── src/test/java/com/aristools/ # 84 pruebas JUnit
 ├── src/test/resources/
 │   └── db-pruebas.properties    # Conexión de las pruebas: H2 en memoria
 ├── ejecutar_aristools.bat       # Lanzador del .jar (sin ventana de consola)
@@ -370,7 +384,7 @@ Contraseña de todos: `Aristools2026*`
 
 ---
 
-## 8. Pruebas automatizadas (78)
+## 8. Pruebas automatizadas (84)
 
 ```
 mvn test
@@ -402,6 +416,7 @@ Las pruebas usan **H2**, una base de datos en memoria que Maven descarga sola (l
 | `AbcYVencimientoTest` | 5 | Clasificación ABC (80 % / 95 %), reparto FEFO del stock entre lotes, estado del lote según los días de aviso, lote y fecha obligatorios en la compra, exactitud del conteo |
 | `ConteoYVencimientoTest` | 4 | Compra con lote que aparece en Vencimientos al autorizarse, clasificación ABC de todos los productos, conteo a ciegas guardado en el historial y plantilla cíclica por clase |
 | `IndicadoresTest` | 4 | La línea de control separa entradas, salidas, pérdidas y sobrantes; fórmulas de rotación, días de inventario y semáforos; el control del período cuadra con las existencias; el tablero tiene nueve indicadores y respeta los roles |
+| `RespaldoBDTest` | 6 | Lectura de la URL de conexión, comando sin contraseña y nombre con fecha, cuándo toca el respaldo automático, qué automáticos y respaldos de seguridad se borran y que solo el Administrador maneja los respaldos |
 | `KardexValorizadoTest` | 1 | Flujo completo: costo sugerido de la última compra, compra registrada y autorizada por otro usuario, promedio recalculado, salida valorada y kardex en pesos |
 | `FormatoTest` | 3 | Forma de mostrar y de leer valores en pesos |
 | `ReportePdfTest` | 3 | El reporte trae encabezado, datos, resumen y responsables; el documento de soporte trae número, datos y responsables; un reporte largo ocupa varias páginas |
@@ -444,6 +459,7 @@ Ambos detectan automáticamente la carpeta de MySQL Server 8.x o 9.x en `C:\Prog
 | 15 | Sugerencia de compra y orden de compra en PDF | ✅ |
 | 16 | Clasificación ABC, conteo cíclico y a ciegas, historial de conteos y vencimientos (FEFO) | ✅ |
 | 17 | Control de inventario del período y tablero de indicadores (KPI) | ✅ |
+| 18 | Respaldo y restauración desde la aplicación y respaldo automático | ✅ |
 
 ### Mejoras planeadas para la entrega final
 

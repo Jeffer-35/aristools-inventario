@@ -212,7 +212,7 @@ public abstract class PanelCatalogo<T> extends JPanel implements Recargable {
         c.fill = GridBagConstraints.HORIZONTAL;
         c.insets = new Insets(5, 0, 5, 0);
         campo.setFont(Tema.NORMAL);
-        campo.setPreferredSize(new Dimension(220, 32));
+        campo.setPreferredSize(new Dimension(190, 32));
         formulario.add(campo, c);
     }
 
@@ -262,7 +262,7 @@ public abstract class PanelCatalogo<T> extends JPanel implements Recargable {
         JPanel tarjeta = new JPanel(new BorderLayout(0, 12)) {
             @Override
             public Dimension getPreferredSize() {
-                return new Dimension(400, super.getPreferredSize().height);
+                return new Dimension(350, super.getPreferredSize().height);
             }
         };
         tarjeta.setBackground(Tema.BLANCO);
