@@ -5,7 +5,9 @@ import com.aristools.controlador.ProductoControlador;
 import com.aristools.controlador.ProveedorControlador;
 import com.aristools.controlador.ReporteControlador;
 import com.aristools.modelo.Bodega;
+import com.aristools.controlador.IndicadorControlador;
 import com.aristools.modelo.ClasificacionAbc;
+import com.aristools.modelo.LineaControl;
 import com.aristools.modelo.CambioStock;
 import com.aristools.modelo.EstadoMovimiento;
 import com.aristools.modelo.FiltroMovimiento;
@@ -104,6 +106,15 @@ public class ReportesPanel extends JPanel implements Recargable {
             "Cantidad", "Costo unit.", "Valor perdido", "Registró", "Autorizó");
     private final DefaultTableModel pTotales = modelo("Totales", "Nombre", "Bajas", "Unidades", "Valor perdido");
 
+    // Pestaña Control del período
+    private final IndicadorControlador control = new IndicadorControlador();
+    private final CampoFecha cDesde = new CampoFecha();
+    private final CampoFecha cHasta = new CampoFecha();
+    private final JLabel cResumen = new JLabel(" ");
+    private List<String> cDetalles = new ArrayList<>();
+    private final DefaultTableModel cModelo = modelo("Código", "Producto", "Saldo inicial", "Entradas", "Salidas",
+            "Pérdidas", "Sobrantes", "Saldo final", "Valor inicial", "Valor pérdidas", "Valor final");
+
     // Pestaña Clasificación ABC
     private final CampoFecha aDesde = new CampoFecha();
     private final CampoFecha aHasta = new CampoFecha();
@@ -119,7 +130,7 @@ public class ReportesPanel extends JPanel implements Recargable {
         JPanel textos = new JPanel(new GridLayout(2, 1));
         textos.setOpaque(false);
         textos.add(Tema.titulo("Reportes"));
-        textos.add(Tema.subtitulo("Kardex valorizado, movimientos y pérdidas. Las fechas son opcionales: elíjalas en el calendario."));
+        textos.add(Tema.subtitulo("Kardex valorizado, movimientos, pérdidas, control del período y clasificación ABC."));
         JTabbedPane pestanas = new JTabbedPane();
         pestanas.setFont(Tema.NEGRITA);
         pestanas.addTab("Kardex", crearKardex());
@@ -127,12 +138,71 @@ public class ReportesPanel extends JPanel implements Recargable {
         if (Permisos.puede(Sesion.getUsuario().getRol(), Accion.VER_PERDIDAS)) {
             pestanas.addTab("Pérdidas", crearPerdidas());   // solo Supervisor y Administrador
         }
+        if (Permisos.puede(Sesion.getUsuario().getRol(), Accion.VER_PERDIDAS)) {
+            pestanas.addTab("Control del período", crearControl());   // solo Supervisor y Administrador
+        }
         pestanas.addTab("Clasificación ABC", crearAbc());
         add(textos, BorderLayout.NORTH);
         add(pestanas, BorderLayout.CENTER);
     }
 
     // ---------- Construcción de las pestañas ----------
+
+    private JPanel crearControl() {
+        JButton consultar = Tema.botonPrincipal("Consultar");
+        JButton exportar = Tema.botonSecundario("Exportar a Excel (CSV)");
+        JButton imprimir = Tema.botonSecundario("Imprimir PDF");
+        consultar.addActionListener(e -> consultarControl());
+        exportar.addActionListener(e -> ejecutar(() -> ExportadorCsv.exportar(this, cModelo, "control_inventario")));
+        imprimir.addActionListener(e -> ejecutar(() -> ExportadorPdf.exportar(this, cModelo, "Control de inventario del período",
+                cDetalles, cResumen.getText(), "control_inventario")));
+        BarraFiltros filtros = new BarraFiltros(3);
+        filtros.agregar("Desde:", cDesde);
+        filtros.agregar("Hasta:", cHasta);
+        filtros.agregar("Período:", CampoFecha.accesosRapidos(cDesde, cHasta));
+        filtros.agregarBotones(consultar, exportar, imprimir);
+        return pestana(filtros, tabla(cModelo, new int[]{70, 200, 85, 70, 65, 70, 80, 80, 105, 105, 105}), cResumen);
+    }
+
+    /** Sin fechas se consulta el mes en curso. Saldo final = inicial + entradas + sobrantes − salidas − pérdidas. */
+    private void consultarControl() {
+        ejecutar(() -> {
+            LocalDate desde = fecha(cDesde, "Desde");
+            LocalDate hasta = fecha(cHasta, "Hasta");
+            if (desde == null && hasta == null) {
+                hasta = LocalDate.now();
+                desde = hasta.withDayOfMonth(1);
+                cDesde.setFecha(desde);
+                cHasta.setFecha(hasta);
+            }
+            cModelo.setRowCount(0);
+            BigDecimal inicial = BigDecimal.ZERO;
+            BigDecimal entradas = BigDecimal.ZERO;
+            BigDecimal salidas = BigDecimal.ZERO;
+            BigDecimal perdidas = BigDecimal.ZERO;
+            BigDecimal sobrantes = BigDecimal.ZERO;
+            BigDecimal valorFinal = BigDecimal.ZERO;
+            List<LineaControl> lineas = control.controlPeriodo(desde, hasta);
+            for (LineaControl l : lineas) {
+                cModelo.addRow(new Object[]{l.getProducto().getCodigo(), l.getProducto().getNombre(), l.getSaldoInicial(),
+                    l.getEntradas(), l.getSalidas(), l.getPerdidas(), l.getSobrantes(), l.saldoFinal(),
+                    Formato.pesos(l.getValorInicial()), Formato.pesos(l.getValorPerdidas()), Formato.pesos(l.valorFinal())});
+                inicial = inicial.add(l.getValorInicial());
+                entradas = entradas.add(l.getValorEntradas());
+                salidas = salidas.add(l.getValorSalidas());
+                perdidas = perdidas.add(l.getValorPerdidas());
+                sobrantes = sobrantes.add(l.getValorSobrantes());
+                valorFinal = valorFinal.add(l.valorFinal());
+            }
+            cDetalles = List.of(periodo(cDesde, cHasta),
+                    "Saldo final = saldo inicial + entradas + sobrantes − salidas − pérdidas (solo movimientos autorizados).",
+                    "Valor inicial " + Formato.pesos(inicial) + "  |  Entradas " + Formato.pesos(entradas)
+                    + "  |  Sobrantes " + Formato.pesos(sobrantes) + "  |  Salidas " + Formato.pesos(salidas)
+                    + "  |  Pérdidas " + Formato.pesos(perdidas));
+            cResumen.setText(lineas.size() + " producto(s) · Valor inicial: " + Formato.pesos(inicial) + " · Pérdidas: "
+                    + Formato.pesos(perdidas) + " · Sobrantes: " + Formato.pesos(sobrantes) + " · Valor final: " + Formato.pesos(valorFinal));
+        });
+    }
 
     private JPanel crearAbc() {
         JButton consultar = Tema.botonPrincipal("Clasificar");

@@ -51,6 +51,7 @@ public class PrincipalVista extends JFrame implements ActionListener {
     public static final String EXISTENCIAS = "Existencias";
     public static final String VENCIMIENTOS = "Vencimientos";
     public static final String REPORTES = "Reportes";
+    public static final String INDICADORES = "Indicadores";
     public static final String CONFIGURACION = "Configuración";
     public static final String BITACORA = "Bitácora";
     private static final String CERRAR_SESION = "Cerrar sesión";
@@ -143,6 +144,7 @@ public class PrincipalVista extends JFrame implements ActionListener {
         agregarOpcion(menu, EXISTENCIAS, Permisos.puede(r, Accion.CONSULTAR_EXISTENCIAS));
         agregarOpcion(menu, VENCIMIENTOS, Permisos.puede(r, Accion.CONSULTAR_EXISTENCIAS));
         agregarOpcion(menu, REPORTES, Permisos.puede(r, Accion.VER_REPORTES));
+        agregarOpcion(menu, INDICADORES, Permisos.puede(r, Accion.VER_REPORTES));
         agregarOpcion(menu, CONFIGURACION, Permisos.puede(r, Accion.CONFIGURAR_PARAMETROS));
         agregarOpcion(menu, BITACORA, Permisos.puede(r, Accion.VER_BITACORA));
 
@@ -225,6 +227,7 @@ public class PrincipalVista extends JFrame implements ActionListener {
             case EXISTENCIAS -> new ExistenciasPanel();
             case VENCIMIENTOS -> new VencimientosPanel();
             case REPORTES -> new ReportesPanel();
+            case INDICADORES -> new IndicadoresPanel();
             default -> new PanelEnConstruccion(carta, "siguiente parte");
         };
     }

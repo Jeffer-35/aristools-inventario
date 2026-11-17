@@ -6,6 +6,7 @@ import com.aristools.modelo.Bodega;
 import com.aristools.modelo.ClasificacionAbc;
 import com.aristools.modelo.Entrada;
 import com.aristools.modelo.FiltroMovimiento;
+import com.aristools.modelo.LineaControl;
 import com.aristools.modelo.LineaKardex;
 import com.aristools.modelo.LoteVencimiento;
 import com.aristools.modelo.Movimiento;
@@ -273,6 +274,64 @@ public class ReporteDAO {
         }
         lista.sort(java.util.Comparator.comparing(LoteVencimiento::getFechaVencimiento));
         return lista;
+    }
+
+    /**
+     * Control de inventario de un período: una línea por producto activo con
+     * saldo inicial, entradas, salidas, pérdidas, sobrantes y saldo final.
+     * Lee los movimientos AUTORIZADOS hasta la fecha final y los acumula en
+     * Java (LineaControl.acumular): lo anterior al período forma el saldo inicial.
+     */
+    public List<LineaControl> controlPeriodo(LocalDate desde, LocalDate hasta) throws SQLException {
+        Map<Integer, LineaControl> lineas = new LinkedHashMap<>();
+        String sqlProductos = "SELECT id_producto, codigo, nombre, unidad_medida FROM producto "
+                            + "WHERE estado = 'ACTIVO' ORDER BY codigo";
+        // El inventario inicial se cargó como ajuste positivo (documento INV-INICIAL): es una entrada, no un sobrante
+        String sqlMovimientos = "SELECT m.id_producto, t.naturaleza, m.cantidad, "
+                   + "CASE WHEN m.documento_soporte = 'INV-INICIAL' THEN 'Inventario inicial' ELSE t.nombre END AS nombre, "
+                   + "COALESCE(m.fecha_autorizacion, m.fecha) AS cuando, "
+                   + "m.cantidad * COALESCE(m.costo_unitario, p.costo_promedio) AS valor "
+                   + "FROM movimiento_inventario m "
+                   + "JOIN producto p ON p.id_producto = m.id_producto "
+                   + "JOIN tipo_movimiento t ON t.id_tipo_movimiento = m.id_tipo_movimiento "
+                   + "WHERE m.estado = 'AUTORIZADO' AND p.estado = 'ACTIVO' AND t.naturaleza <> 'TRANSFERENCIA' "
+                   + "AND COALESCE(m.fecha_autorizacion, m.fecha) < ?";
+        Timestamp inicio = Timestamp.valueOf(desde.atStartOfDay());
+        try (Connection con = ConexionDB.obtener()) {
+            try (PreparedStatement ps = con.prepareStatement(sqlProductos); ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    Producto p = new Producto();
+                    p.setIdProducto(rs.getInt("id_producto"));
+                    p.setCodigo(rs.getString("codigo"));
+                    p.setNombre(rs.getString("nombre"));
+                    p.setUnidadMedida(rs.getString("unidad_medida"));
+                    lineas.put(p.getIdProducto(), new LineaControl(p));
+                }
+            }
+            try (PreparedStatement ps = con.prepareStatement(sqlMovimientos)) {
+                ps.setTimestamp(1, Timestamp.valueOf(hasta.plusDays(1).atStartOfDay()));
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        LineaControl l = lineas.get(rs.getInt("id_producto"));
+                        l.acumular(Naturaleza.valueOf(rs.getString("naturaleza")), rs.getString("nombre"),
+                                rs.getTimestamp("cuando").before(inicio), rs.getInt("cantidad"), rs.getBigDecimal("valor"));
+                    }
+                }
+            }
+        }
+        return new ArrayList<>(lineas.values());
+    }
+
+    /** Valor actual del inventario: existencias x costo promedio de los productos activos. */
+    public BigDecimal valorInventario() throws SQLException {
+        String sql = "SELECT COALESCE(SUM(e.cantidad * p.costo_promedio), 0) FROM existencia e "
+                   + "JOIN producto p ON p.id_producto = e.id_producto WHERE p.estado = 'ACTIVO'";
+        try (Connection con = ConexionDB.obtener();
+             PreparedStatement ps = con.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            rs.next();
+            return rs.getBigDecimal(1);
+        }
     }
 
     /**

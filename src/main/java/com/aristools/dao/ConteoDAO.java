@@ -97,6 +97,24 @@ public class ConteoDAO {
         return lista;
     }
 
+    /**
+     * Totales de los conteos de un período, para el indicador de exactitud.
+     * @return {productos contados, productos con diferencia, número de conteos}
+     */
+    public int[] totales(java.time.LocalDate desde, java.time.LocalDate hasta) throws SQLException {
+        String sql = "SELECT COALESCE(SUM(productos_contados), 0), COALESCE(SUM(con_diferencia), 0), COUNT(*) "
+                   + "FROM conteo WHERE fecha >= ? AND fecha < ?";
+        try (Connection con = ConexionDB.obtener();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setTimestamp(1, Timestamp.valueOf(desde.atStartOfDay()));
+            ps.setTimestamp(2, Timestamp.valueOf(hasta.plusDays(1).atStartOfDay()));
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                return new int[]{rs.getInt(1), rs.getInt(2), rs.getInt(3)};
+            }
+        }
+    }
+
     /** Líneas de un conteo guardado: lo que decía el sistema y lo que se contó. */
     public List<LineaConteo> detalle(int idConteo) throws SQLException {
         String sql = "SELECT p.codigo, p.nombre, d.stock_sistema, d.cantidad_contada "

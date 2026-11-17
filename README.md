@@ -22,7 +22,7 @@ cd aristools-inventario
 mvn test
 ```
 
-Resultado esperado: `Tests run: 74, Failures: 0, Errors: 0` y `BUILD SUCCESS`, en cualquier computador con JDK 17 y Maven, sin instalar MySQL y sin contraseñas.
+Resultado esperado: `Tests run: 78, Failures: 0, Errors: 0` y `BUILD SUCCESS`, en cualquier computador con JDK 17 y Maven, sin instalar MySQL y sin contraseñas.
 
 ---
 
@@ -110,6 +110,30 @@ En *Inventario físico* se elige el **tipo de conteo**: general (toda la bodega)
 Los productos marcados con **Controla vencimiento** piden el **lote** y la **fecha de vencimiento** en cada compra, y no se puede recibir mercancía ya vencida. La opción *Vencimientos* (todos los roles) lista los lotes que siguen en bodega ordenados por fecha: el primero es el que debe salir primero (FEFO: *First Expired, First Out*). Los vencidos salen en rojo y los que vencen dentro de los días de aviso (parámetro *Aviso de vencimiento*, 30 por defecto), en naranja; la tarjeta *Lotes por vencer* de Inicio los cuenta.
 
 El sistema no lleva el stock lote por lote: lo **estima** repartiendo las unidades que hay en bodega con la misma regla FEFO. **Ejemplo:** entran 10 unidades que vencen en enero y 10 que vencen en marzo; si quedan 12, se asume que 10 son del lote de marzo y 2 del de enero.
+
+### Control del período y tablero de indicadores
+
+La pestaña *Control del período* de Reportes (Supervisor y Administrador) muestra, producto por producto, cómo se movió el inventario en un mes o en cualquier rango de fechas:
+
+**Saldo final = saldo inicial + entradas + sobrantes − salidas − pérdidas**
+
+Las pérdidas son mermas, productos dañados o vencidos y faltantes del conteo; los sobrantes son los ajustes positivos del conteo. Las transferencias no se cuentan porque no cambian el total. Se exporta a Excel y se imprime en PDF.
+
+La opción *Indicadores* (roles con reportes) es un tablero con nueve tarjetas y semáforo (verde cumple, naranja alerta, rojo crítico, azul informativo):
+
+| Indicador | Cómo se calcula | Meta |
+|---|---|---|
+| Valor del inventario | Existencias × costo promedio | Informativo |
+| Rotación | Costo de lo que salió ÷ inventario promedio del período | Informativo |
+| Días de inventario | Días del período ÷ rotación | Informativo |
+| Exactitud del inventario | Productos que coincidieron ÷ productos contados | 95 % o más |
+| Pérdidas | Valor de las pérdidas ÷ valor de todo lo que salió | 2 % o menos |
+| Productos en bajo stock | Alertas de bajo stock ÷ productos activos | 10 % o menos |
+| Productos sin movimiento | Con existencias y sin entradas ni salidas en el período | 20 % o menos |
+| Lotes vencidos en bodega | Lotes con fecha pasada y unidades en bodega | 0 |
+| Movimientos por autorizar | Entradas y salidas pendientes | 0 |
+
+**Ejemplo de rotación:** salió mercancía por $ 600.000 y el inventario promedio fue (900.000 + 1.100.000) ÷ 2 = $ 1.000.000; la rotación es 0,6 veces y en un mes de 30 días equivale a 30 ÷ 0,6 = 50 días de inventario.
 
 ### Documentos de soporte
 
@@ -222,15 +246,15 @@ aristools-inventario/
 ├── src/main/java/com/aristools/
 │   ├── Main.java                # Punto de entrada del programa
 │   ├── conexion/    ConexionDB
-│   ├── modelo/      31 clases (entidades, Movimiento y sus 4 subclases, enumeraciones y auxiliares)
+│   ├── modelo/      36 clases (entidades, Movimiento y sus 4 subclases, enumeraciones y auxiliares)
 │   ├── dao/         15 DAO
 │   ├── seguridad/   Accion, Permisos, PasswordUtil, Sesion
-│   ├── controlador/ 16 clases (controladores, GestorInventario y Auditoria)
+│   ├── controlador/ 17 clases (controladores, GestorInventario y Auditoria)
 │   ├── util/        NegocioException, Validador, Cambios, Formato, ReportePdf
-│   └── vista/       34 clases (ventanas, paneles y diálogos Swing)
+│   └── vista/       36 clases (ventanas, paneles y diálogos Swing)
 ├── src/main/resources/
 │   └── db.properties.ejemplo    # Plantilla de la conexión a MySQL (copiar como db.properties)
-├── src/test/java/com/aristools/ # 74 pruebas JUnit
+├── src/test/java/com/aristools/ # 78 pruebas JUnit
 ├── src/test/resources/
 │   └── db-pruebas.properties    # Conexión de las pruebas: H2 en memoria
 ├── ejecutar_aristools.bat       # Lanzador del .jar (sin ventana de consola)
@@ -346,7 +370,7 @@ Contraseña de todos: `Aristools2026*`
 
 ---
 
-## 8. Pruebas automatizadas (74)
+## 8. Pruebas automatizadas (78)
 
 ```
 mvn test
@@ -377,6 +401,7 @@ Las pruebas usan **H2**, una base de datos en memoria que Maven descarga sola (l
 | `CompraTest` | 2 | Sugerencia de la pintura bajo su mínimo, orden de compra guardada con su total; la sugerencia solo la usan Jefe de Compras y Administrador |
 | `AbcYVencimientoTest` | 5 | Clasificación ABC (80 % / 95 %), reparto FEFO del stock entre lotes, estado del lote según los días de aviso, lote y fecha obligatorios en la compra, exactitud del conteo |
 | `ConteoYVencimientoTest` | 4 | Compra con lote que aparece en Vencimientos al autorizarse, clasificación ABC de todos los productos, conteo a ciegas guardado en el historial y plantilla cíclica por clase |
+| `IndicadoresTest` | 4 | La línea de control separa entradas, salidas, pérdidas y sobrantes; fórmulas de rotación, días de inventario y semáforos; el control del período cuadra con las existencias; el tablero tiene nueve indicadores y respeta los roles |
 | `KardexValorizadoTest` | 1 | Flujo completo: costo sugerido de la última compra, compra registrada y autorizada por otro usuario, promedio recalculado, salida valorada y kardex en pesos |
 | `FormatoTest` | 3 | Forma de mostrar y de leer valores en pesos |
 | `ReportePdfTest` | 3 | El reporte trae encabezado, datos, resumen y responsables; el documento de soporte trae número, datos y responsables; un reporte largo ocupa varias páginas |
@@ -418,10 +443,11 @@ Ambos detectan automáticamente la carpeta de MySQL Server 8.x o 9.x en `C:\Prog
 | 14 | Averías con cuarentena, causas de baja, reporte de pérdidas y documentos de soporte | ✅ |
 | 15 | Sugerencia de compra y orden de compra en PDF | ✅ |
 | 16 | Clasificación ABC, conteo cíclico y a ciegas, historial de conteos y vencimientos (FEFO) | ✅ |
+| 17 | Control de inventario del período y tablero de indicadores (KPI) | ✅ |
 
 ### Mejoras planeadas para la entrega final
 
-Control mensual, tablero de indicadores (KPI) y respaldo automático.
+Respaldo automático de la base de datos y pruebas finales.
 
 **Trabajo futuro (fuera del alcance):** base de datos en red o en la nube, control de stock por lote y lector de código de barras.
 
