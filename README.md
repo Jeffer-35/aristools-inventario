@@ -22,7 +22,7 @@ cd aristools-inventario
 mvn test
 ```
 
-Resultado esperado: `Tests run: 88, Failures: 0, Errors: 0, Skipped: 1` y `BUILD SUCCESS`, en cualquier computador con JDK 17 y Maven, sin instalar MySQL y sin contraseñas.
+Resultado esperado: `Tests run: 101, Failures: 0, Errors: 0, Skipped: 14` y `BUILD SUCCESS`, en cualquier computador con JDK 17 y Maven, sin instalar MySQL y sin contraseñas.
 
 ---
 
@@ -280,7 +280,7 @@ aristools-inventario/
 │   └── vista/       37 clases (ventanas, paneles y diálogos Swing)
 ├── src/main/resources/
 │   └── db.properties.ejemplo    # Plantilla de la conexión a MySQL (copiar como db.properties)
-├── src/test/java/com/aristools/ # 88 pruebas JUnit
+├── src/test/java/com/aristools/ # 101 pruebas JUnit
 ├── src/test/resources/
 │   └── db-pruebas.properties    # Conexión de las pruebas: H2 en memoria
 ├── ejecutar_aristools.bat       # Lanzador del .jar (sin ventana de consola)
@@ -299,7 +299,7 @@ aristools-inventario/
 
 ## 6. Base de datos
 
-Esquema `aristools` (InnoDB, utf8mb4) con **16 tablas**, 16 llaves primarias, **23 llaves foráneas**, restricciones `UNIQUE` y `CHECK`, 5 índices y 2 disparadores.
+Esquema `aristools` (InnoDB, utf8mb4) con **16 tablas**, 16 llaves primarias, **23 llaves foráneas**, restricciones `UNIQUE` y `CHECK`, 5 índices, 2 disparadores y **4 procedimientos almacenados**.
 
 | Grupo | Tablas |
 |---|---|
@@ -340,6 +340,19 @@ En MySQL Workbench, ejecutar en este orden:
 | `actualizar_bd_v9.sql` | Seguimiento de la orden de compra: `estado` y `motivo_anulacion` en `orden_compra`, `cantidad_recibida` en `orden_compra_detalle` e `id_orden` (llave foránea) en `movimiento_inventario` |
 
 Cada integrante ejecuta los scripts en su propio MySQL: GitHub comparte el código, no la base de datos.
+
+### Procedimientos almacenados (Bases de Datos 2)
+
+`database/procedimientos.sql` crea (o vuelve a crear) cuatro procedimientos en una base que ya tiene datos; una instalación nueva con `aristools.sql` ya los trae. Se llaman desde Java con `CallableStatement` en `dao/ProcedimientosDAO.java`.
+
+| Procedimiento | Parámetros | Qué hace |
+|---|---|---|
+| `sp_evaluar_alertas_producto` | `IN p_id_producto` | Crea la alerta de bajo stock o sobrestock sin repetirla y resuelve las que ya no aplican (RF-012) |
+| `sp_autorizar_movimiento` | `IN p_id_movimiento, IN p_id_autorizador, OUT p_mensaje` | Autoriza una entrada o salida pendiente y actualiza la existencia en una transacción (RF-010, RF-011) |
+| `sp_registrar_transferencia` | `IN` producto, origen, destino, cantidad, usuario, observación; `OUT p_id_movimiento` | Registra la transferencia y mueve el stock entre bodegas (RF-008) |
+| `sp_consultar_existencias` | `IN p_id_producto, OUT p_total` | Devuelve las existencias por bodega y el total en un parámetro de salida (RF-013) |
+
+`database/pruebas_procedimientos.sql` tiene las pruebas manuales para Workbench: crea su propio producto de prueba y al final lo borra, así que no daña los datos. La aplicación sigue trabajando con sus DAO; los procedimientos son el trabajo del curso de Bases de Datos 2.
 
 ---
 
@@ -397,7 +410,7 @@ Contraseña de todos: `Aristools2026*`
 
 ---
 
-## 8. Pruebas automatizadas (88)
+## 8. Pruebas automatizadas (101)
 
 ```
 mvn test
@@ -424,7 +437,7 @@ H2 imita a MySQL, pero no es MySQL. Para comprobar que todo el SQL funciona igua
 1. Copiar `db-pruebas-mysql.properties.ejemplo` (en la raíz del proyecto) con el nombre `db-pruebas-mysql.properties` y escribir la contraseña de MySQL. No se sube a GitHub.
 2. Ejecutar `mvn test -Dpruebas=mysql`.
 
-Las pruebas **borran y vuelven a crear** la base `aristools_pruebas` con los scripts del proyecto, incluidos los dos disparadores, que en este modo sí se prueban (`Tests run: 88, Skipped: 0`). Por seguridad el nombre de la base debe terminar en `_pruebas`: la base de trabajo `aristools` nunca se toca. El `mvn clean package` de siempre sigue usando H2.
+Las pruebas **borran y vuelven a crear** la base `aristools_pruebas` con los scripts del proyecto, incluidos los dos disparadores, y los procedimientos almacenados, que en este modo sí se prueban (`Tests run: 101, Skipped: 0`). Por seguridad el nombre de la base debe terminar en `_pruebas`: la base de trabajo `aristools` nunca se toca. El `mvn clean package` de siempre sigue usando H2.
 
 ### Qué verifica cada clase
 
@@ -449,6 +462,7 @@ Las pruebas **borran y vuelven a crear** la base `aristools_pruebas` con los scr
 | `LoginControladorTest` | 4 | Inicio de sesión correcto, mensajes que no revelan qué dato falló y bloqueo de la cuenta |
 | `ControladoresTest` | 7 | Tarjetas del panel, permisos por rol, `ROLLBACK` real, conteo desde CSV, kardex recortado por rol y validaciones de catálogos y parámetros |
 | `CambiosTest` | 2 | Texto “antes → después” que se guarda en la bitácora |
+| `ProcedimientosTest` | 13 | Solo en MySQL real: pruebas unitarias de los 4 procedimientos almacenados (alertas sin repetir, autorización con rol y segregación, `ROLLBACK` sin stock, transferencia y consulta con parámetro `OUT`) e integración (la autorización llama a las alertas y el kardex de Java ve los movimientos) |
 
 Las operaciones con movimientos se revierten con `ROLLBACK`, así que los datos de prueba no cambian entre una prueba y otra.
 
@@ -484,6 +498,7 @@ Ambos detectan automáticamente la carpeta de MySQL Server 8.x o 9.x en `C:\Prog
 | 17 | Control de inventario del período y tablero de indicadores (KPI) | ✅ |
 | 18 | Respaldo y restauración desde la aplicación y respaldo automático | ✅ |
 | 19 | Seguimiento de la orden de compra y pruebas en MySQL real | ✅ |
+| 20 | Procedimientos almacenados y su llamado desde Java con `CallableStatement` | ✅ |
 
 **Trabajo futuro (fuera del alcance):** base de datos en red o en la nube, control de stock lote por lote en las salidas (hoy se estima con la regla FEFO), ubicaciones dentro de la bodega (pasillo y estante) y lector de código de barras.
 
