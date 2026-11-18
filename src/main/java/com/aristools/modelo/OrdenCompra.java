@@ -13,7 +13,9 @@ import java.util.Set;
  * Compras). Su número es OC- y el id con seis cifras, por ejemplo OC-000003.
  *
  * La orden es solo el pedido: el stock cambia cuando llega la mercancía y se
- * registra la Entrada (compra) con la factura del proveedor.
+ * registra la Entrada (compra) con la factura del proveedor. Esa entrada
+ * puede indicar qué orden recibe; al autorizarla, la orden pasa a
+ * "Recibida en parte" o "Recibida" según lo que haya llegado (seguimiento).
  */
 public class OrdenCompra {
 
@@ -23,6 +25,8 @@ public class OrdenCompra {
     private final List<LineaOrdenCompra> lineas;
     private LocalDateTime fecha;
     private String observacion;
+    private EstadoOrden estado = EstadoOrden.PENDIENTE;
+    private String motivoAnulacion;
 
     public OrdenCompra(Proveedor proveedor, Usuario usuario, List<LineaOrdenCompra> lineas) {
         this.proveedor = proveedor;
@@ -66,6 +70,61 @@ public class OrdenCompra {
         return total;
     }
 
+    /**
+     * Estado según lo recibido de cada producto: nada = PENDIENTE, todo =
+     * RECIBIDA y lo demás = PARCIAL. (ANULADA no se calcula: la decide el
+     * Jefe de Compras.)
+     */
+    public static EstadoOrden estadoSegunRecibido(List<LineaOrdenCompra> lineas) {
+        boolean algo = false;
+        boolean todo = true;
+        for (LineaOrdenCompra l : lineas) {
+            if (l.getCantidadRecibida() > 0) {
+                algo = true;
+            }
+            if (l.pendiente() > 0) {
+                todo = false;
+            }
+        }
+        if (todo && algo) {
+            return EstadoOrden.RECIBIDA;
+        }
+        return algo ? EstadoOrden.PARCIAL : EstadoOrden.PENDIENTE;
+    }
+
+    /** Busca la línea de un producto en la orden; null si ese producto no se pidió. */
+    public LineaOrdenCompra linea(int idProducto) {
+        for (LineaOrdenCompra l : lineas) {
+            if (l.getProducto().getIdProducto() == idProducto) {
+                return l;
+            }
+        }
+        return null;
+    }
+
+    /** Unidades pedidas en total (todas las líneas). */
+    public int unidadesPedidas() {
+        return lineas.stream().mapToInt(LineaOrdenCompra::getCantidad).sum();
+    }
+
+    /** Unidades que ya llegaron en total. */
+    public int unidadesRecibidas() {
+        return lineas.stream().mapToInt(l -> Math.min(l.getCantidadRecibida(), l.getCantidad())).sum();
+    }
+
+    /** Porcentaje recibido de la orden (0 a 100), por unidades. */
+    public int porcentajeRecibido() {
+        int pedidas = unidadesPedidas();
+        return pedidas == 0 ? 0 : unidadesRecibidas() * 100 / pedidas;
+    }
+
+    /** Texto de la orden en las listas, por ejemplo "OC-000003 · 17/11/2026 · Pendiente". */
+    @Override
+    public String toString() {
+        return numero() + " · " + fecha.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+                + " · " + estado.texto();
+    }
+
     /** Número del documento, por ejemplo OC-000003. */
     public String numero() {
         return "OC-" + String.format("%06d", idOrden);
@@ -105,5 +164,21 @@ public class OrdenCompra {
 
     public void setObservacion(String observacion) {
         this.observacion = observacion;
+    }
+
+    public EstadoOrden getEstado() {
+        return estado;
+    }
+
+    public void setEstado(EstadoOrden estado) {
+        this.estado = estado;
+    }
+
+    public String getMotivoAnulacion() {
+        return motivoAnulacion;
+    }
+
+    public void setMotivoAnulacion(String motivoAnulacion) {
+        this.motivoAnulacion = motivoAnulacion;
     }
 }

@@ -175,6 +175,9 @@ public final class ExportadorPdf {
                 entrada.getFechaVencimiento().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"))});
         }
         agregarSiHay(campos, "Factura o remisión", m.getDocumentoSoporte());
+        if (m instanceof Entrada conOrden && conOrden.getIdOrden() != null) {
+            campos.add(new String[]{"Orden de compra que recibe", "OC-" + String.format("%06d", conOrden.getIdOrden())});
+        }
         if (m.getCausaBaja() != null) {
             campos.add(new String[]{"Causa de la baja", m.getCausaBaja().getDescripcion()});
         }

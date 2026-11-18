@@ -26,6 +26,12 @@ import java.util.Properties;
  * ni contraseña. Ese archivo no va dentro del .jar: el programa instalado
  * siempre usa MySQL.
  *
+ * Pruebas en MySQL real: "mvn test -Dpruebas=mysql" corre las mismas pruebas
+ * contra MySQL, en una base aparte (aristools_pruebas) que se crea y se borra
+ * sola. Los datos de conexión se leen de db-pruebas-mysql.properties, en la
+ * carpeta del proyecto. Sirve para comprobar que el SQL funciona igual en
+ * MySQL que en H2. La base de trabajo (aristools) no se toca.
+ *
  * Todas las clases DAO piden la conexión con ConexionDB.obtener() y la
  * cierran al terminar usando try-with-resources.
  */
@@ -34,11 +40,14 @@ public final class ConexionDB {
     private static final String ARCHIVO = "/db.properties";
     // Solo existe mientras corren las pruebas (src/test/resources)
     private static final String ARCHIVO_PRUEBAS = "/db-pruebas.properties";
+    // Pruebas en MySQL real (mvn test -Dpruebas=mysql): archivo en la carpeta del proyecto, fuera de GitHub
+    public static final String ARCHIVO_PRUEBAS_MYSQL = "db-pruebas-mysql.properties";
 
     private static String URL;
     private static String USUARIO;
     private static String CLAVE;
     private static String MYSQL_BIN;   // opcional: carpeta bin de MySQL para los respaldos
+    private static boolean MODO_PRUEBAS;   // true mientras corre "mvn test"
 
     // Se ejecuta una sola vez, la primera vez que se usa la clase.
     static {
@@ -79,6 +88,17 @@ public final class ConexionDB {
     private static InputStream abrirArchivo() throws IOException {
         InputStream pruebas = ConexionDB.class.getResourceAsStream(ARCHIVO_PRUEBAS);
         if (pruebas != null) {
+            MODO_PRUEBAS = true;
+            if ("mysql".equalsIgnoreCase(System.getProperty("pruebas", "").trim())) {
+                pruebas.close();
+                File mysql = new File(ARCHIVO_PRUEBAS_MYSQL);
+                if (!mysql.isFile()) {
+                    throw new IllegalStateException("Para correr las pruebas en MySQL copie "
+                            + ARCHIVO_PRUEBAS_MYSQL + ".ejemplo con el nombre " + ARCHIVO_PRUEBAS_MYSQL
+                            + " (en la carpeta del proyecto) y escriba la contraseña de MySQL.");
+                }
+                return new FileInputStream(mysql);
+            }
             return pruebas;
         }
         File carpetaPrograma = carpetaDelPrograma();
@@ -114,8 +134,16 @@ public final class ConexionDB {
         return valor.trim();
     }
 
-    /** Indica si la conexión es la base H2 en memoria de las pruebas (y no MySQL). */
+    /**
+     * Indica si se están corriendo las pruebas (mvn test): con la base H2 en
+     * memoria o con la base MySQL de pruebas, nunca con la base de trabajo.
+     */
     public static boolean esBaseDePruebas() {
+        return MODO_PRUEBAS || URL.startsWith("jdbc:h2:");
+    }
+
+    /** true si la conexión es la base H2 en memoria (la forma normal de las pruebas). */
+    public static boolean esH2() {
         return URL.startsWith("jdbc:h2:");
     }
 

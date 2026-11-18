@@ -1,11 +1,14 @@
 package com.aristools.pruebas;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 import com.aristools.conexion.ConexionDB;
 import java.sql.Connection;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -19,10 +22,27 @@ import org.junit.jupiter.api.extension.ExtendWith;
 class BaseDePruebasTest {
 
     @Test
-    void lasPruebasUsanH2EnMemoriaYNoMySQL() throws Exception {
+    void lasPruebasNuncaUsanLaBaseDeTrabajo() throws Exception {
         assertTrue(ConexionDB.esBaseDePruebas());
         try (Connection con = ConexionDB.obtener()) {
-            assertEquals("H2", con.getMetaData().getDatabaseProductName());
+            if (ConexionDB.esH2()) {
+                assertEquals("H2", con.getMetaData().getDatabaseProductName(), "Lo normal: H2 en memoria");
+            } else {
+                // mvn test -Dpruebas=mysql: MySQL real, pero en la base aparte aristools_pruebas
+                assertEquals("MySQL", con.getMetaData().getDatabaseProductName());
+                assertTrue(con.getCatalog().endsWith("_pruebas"), "Base de pruebas: " + con.getCatalog());
+            }
+        }
+    }
+
+    /** Solo en MySQL real: los disparadores no dejan cambiar ni borrar la bitácora. */
+    @Test
+    void enMySqlLaBitacoraNoSePuedeModificarNiBorrar() throws Exception {
+        assumeFalse(ConexionDB.esH2(), "H2 no ejecuta los disparadores de MySQL");
+        try (Connection con = ConexionDB.obtener(); Statement st = con.createStatement()) {
+            st.execute("INSERT INTO bitacora (accion, detalle) VALUES ('PRUEBA', 'Registro de prueba del disparador')");
+            assertThrows(SQLException.class, () -> st.execute("UPDATE bitacora SET detalle = 'cambiado'"));
+            assertThrows(SQLException.class, () -> st.execute("DELETE FROM bitacora"));
         }
     }
 
@@ -53,5 +73,7 @@ class BaseDePruebasTest {
         List<String> sentencias = LectorScripts.sentencias(script);
         assertEquals(List.of("CREATE TABLE a (id INT)", "INSERT INTO a VALUES ('uno; dos')",
                 "INSERT INTO a VALUES ('tres')"), sentencias);
+        assertEquals(List.of("CREATE TRIGGER t BEFORE UPDATE ON a FOR EACH ROW BEGIN SIGNAL SQLSTATE '45000'; END"),
+                LectorScripts.disparadores(script), "El disparador se lee completo, con su ; interno");
     }
 }

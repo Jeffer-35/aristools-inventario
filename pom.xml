@@ -21,6 +21,8 @@
         <!-- UTF-8 para que las tildes y la ñ se vean bien en Windows -->
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+        <!-- Base de las pruebas: h2 (en memoria, lo normal) o mysql (mvn test -Dpruebas=mysql) -->
+        <pruebas>h2</pruebas>
         <!-- Clase que se ejecuta con: mvn compile exec:java -->
         <exec.mainClass>com.aristools.Main</exec.mainClass>
     </properties>
@@ -89,6 +91,12 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.2.5</version>
+                <configuration>
+                    <!-- mvn test -Dpruebas=mysql: las mismas pruebas en MySQL real (base aristools_pruebas) -->
+                    <systemPropertyVariables>
+                        <pruebas>${pruebas}</pruebas>
+                    </systemPropertyVariables>
+                </configuration>
             </plugin>
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>

@@ -23,7 +23,8 @@ class ConexionDBTest {
     void conectaConLaBaseAristools() throws Exception {
         try (Connection con = ConexionDB.obtener()) {
             assertTrue(con.isValid(2), "La conexión con la base de datos no es válida");
-            assertEquals("aristools", con.getCatalog().toLowerCase(), "La conexión no apunta a la base aristools");
+            // aristools en H2; aristools_pruebas cuando se corre con -Dpruebas=mysql
+            assertTrue(con.getCatalog().toLowerCase().startsWith("aristools"), "La conexión no apunta a la base aristools");
         }
     }
 

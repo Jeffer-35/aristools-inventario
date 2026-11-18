@@ -4,6 +4,7 @@ target/
 # Contiene la contraseña de MySQL: no se sube a GitHub, esté en la carpeta que esté
 # (db.properties.ejemplo sí se sube porque no tiene contraseña)
 db.properties
+db-pruebas-mysql.properties
 
 # Respaldos de la base de datos (pueden tener datos reales)
 database/respaldos/

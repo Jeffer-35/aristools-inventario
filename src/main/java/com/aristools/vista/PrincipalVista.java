@@ -47,6 +47,7 @@ public class PrincipalVista extends JFrame implements ActionListener {
     public static final String CONTEO = "Inventario físico";
     public static final String AUTORIZAR_ENTRADAS = "Autorizar entradas";
     public static final String COMPRAS = "Sugerencia de compra";
+    public static final String ORDENES = "Órdenes de compra";
     public static final String AUTORIZACIONES = "Autorizaciones";
     public static final String EXISTENCIAS = "Existencias";
     public static final String VENCIMIENTOS = "Vencimientos";
@@ -144,6 +145,7 @@ public class PrincipalVista extends JFrame implements ActionListener {
         agregarOpcion(menu, CONTEO, Permisos.puede(r, Accion.REALIZAR_CONTEO));
         agregarOpcion(menu, AUTORIZAR_ENTRADAS, Permisos.puede(r, Accion.AUTORIZAR_ENTRADAS));
         agregarOpcion(menu, COMPRAS, Permisos.puede(r, Accion.SUGERIR_COMPRA));
+        agregarOpcion(menu, ORDENES, Permisos.puede(r, Accion.SUGERIR_COMPRA));
         agregarOpcion(menu, AUTORIZACIONES, Permisos.puede(r, Accion.AUTORIZAR_SALIDAS));
         agregarOpcion(menu, EXISTENCIAS, Permisos.puede(r, Accion.CONSULTAR_EXISTENCIAS));
         agregarOpcion(menu, VENCIMIENTOS, Permisos.puede(r, Accion.CONSULTAR_EXISTENCIAS));
@@ -273,6 +275,7 @@ public class PrincipalVista extends JFrame implements ActionListener {
             case CONTEO -> new ConteoPanel();
             case AUTORIZAR_ENTRADAS -> new AutorizacionesPanel(Naturaleza.ENTRADA);
             case COMPRAS -> new SugerenciaCompraPanel();
+            case ORDENES -> new OrdenesCompraPanel();
             case AUTORIZACIONES -> new AutorizacionesPanel(Naturaleza.SALIDA);
             case EXISTENCIAS -> new ExistenciasPanel();
             case VENCIMIENTOS -> new VencimientosPanel();

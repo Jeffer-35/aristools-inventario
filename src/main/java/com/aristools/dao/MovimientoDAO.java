@@ -39,7 +39,7 @@ public class MovimientoDAO {
     /** Consulta base con todos los datos relacionados; también la usa ReporteDAO. */
     static final String SELECT_BASE =
             "SELECT m.id_movimiento, m.cantidad, m.costo_unitario, m.estado, m.fecha, m.fecha_autorizacion, m.motivo, "
-          + "m.motivo_rechazo, m.documento_soporte, m.observacion, m.causa_baja, m.lote, m.fecha_vencimiento, "
+          + "m.motivo_rechazo, m.documento_soporte, m.observacion, m.causa_baja, m.lote, m.fecha_vencimiento, m.id_orden, "
           + "p.id_producto, p.codigo AS p_codigo, p.nombre AS p_nombre, p.estado AS p_estado, p.unidad_medida, "
           + "p.stock_minimo, p.stock_maximo, p.controla_vencimiento, "
           + "t.id_tipo_movimiento, t.nombre AS t_nombre, t.naturaleza, t.requiere_autorizacion, "
@@ -87,8 +87,8 @@ public class MovimientoDAO {
         }
         String sql = "INSERT INTO movimiento_inventario (id_producto, id_tipo_movimiento, id_bodega_origen, "
                    + "id_bodega_destino, id_proveedor, id_usuario, estado, id_usuario_autoriza, fecha_autorizacion, "
-                   + "documento_soporte, motivo, cantidad, fecha, observacion, costo_unitario, causa_baja, lote, fecha_vencimiento) "
-                   + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                   + "documento_soporte, motivo, cantidad, fecha, observacion, costo_unitario, causa_baja, lote, fecha_vencimiento, "
+                   + "id_orden) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         try (PreparedStatement ps = con.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             ps.setInt(1, m.getProducto().getIdProducto());
             ps.setInt(2, m.getTipo().getIdTipoMovimiento());
@@ -111,6 +111,7 @@ public class MovimientoDAO {
             ps.setString(17, conLote == null ? null : conLote.getLote());
             ps.setDate(18, conLote == null || conLote.getFechaVencimiento() == null ? null
                     : java.sql.Date.valueOf(conLote.getFechaVencimiento()));
+            ps.setObject(19, conLote == null ? null : conLote.getIdOrden(), Types.INTEGER);   // orden de compra que recibe
             ps.executeUpdate();
             try (ResultSet rs = ps.getGeneratedKeys()) {
                 rs.next();
@@ -306,6 +307,7 @@ public class MovimientoDAO {
             entrada.setLote(rs.getString("lote"));
             java.sql.Date vence = rs.getDate("fecha_vencimiento");
             entrada.setFechaVencimiento(vence == null ? null : vence.toLocalDate());
+            entrada.setIdOrden(rs.getObject("id_orden", Integer.class));
         }
         return m;
     }

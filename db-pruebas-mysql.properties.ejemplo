@@ -1,0 +1,18 @@
+# ==================================================================
+# Pruebas en MySQL real - Ferretería Aristools
+# Sirve para correr las mismas pruebas de "mvn test" en MySQL, y no en
+# la base H2 en memoria, con el comando:
+#
+#     mvn test -Dpruebas=mysql
+#
+# 1. Copie este archivo con el nombre db-pruebas-mysql.properties
+#    (en esta misma carpeta, la raíz del proyecto).
+# 2. Escriba en "clave" la contraseña de MySQL (la misma de db.properties).
+#
+# OJO: las pruebas BORRAN y vuelven a crear la base aristools_pruebas.
+# Por seguridad el nombre debe terminar en _pruebas: la base de trabajo
+# (aristools) nunca se toca. Este archivo NO se sube a GitHub.
+# ==================================================================
+url=jdbc:mysql://localhost:3306/aristools_pruebas?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=America/Bogota&characterEncoding=UTF-8
+usuario=root
+clave=ESCRIBA_AQUI_SU_CONTRASENA

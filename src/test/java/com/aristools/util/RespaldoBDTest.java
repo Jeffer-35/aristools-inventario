@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.aristools.conexion.ConexionDB;
 import com.aristools.controlador.LoginControlador;
 import com.aristools.controlador.RespaldoControlador;
 import com.aristools.pruebas.BaseDePruebas;
@@ -91,8 +92,10 @@ class RespaldoBDTest {
         RespaldoControlador respaldos = new RespaldoControlador();
         assertThrows(NegocioException.class, () -> respaldos.restaurar(null), "Hay que elegir el archivo");
         assertThrows(NegocioException.class, () -> respaldos.guardarDiasRespaldoAutomatico(91));
-        NegocioException e = assertThrows(NegocioException.class, respaldos::respaldarAhora);
-        assertTrue(e.getMessage().contains("MySQL"), "La base de pruebas (H2) no se respalda: " + e.getMessage());
+        if (ConexionDB.esH2()) {   // en las pruebas con MySQL real no se crea un respaldo de verdad
+            NegocioException e = assertThrows(NegocioException.class, respaldos::respaldarAhora);
+            assertTrue(e.getMessage().contains("MySQL"), "La base de pruebas (H2) no se respalda: " + e.getMessage());
+        }
     }
     @Test
     void elRespaldoDeSeguridadTieneSuTipoYSoloSeConservanLosUltimos() {

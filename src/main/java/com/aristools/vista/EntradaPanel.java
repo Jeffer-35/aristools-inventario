@@ -1,8 +1,11 @@
 package com.aristools.vista;
 
+import com.aristools.controlador.CompraControlador;
 import com.aristools.modelo.Bodega;
 import com.aristools.modelo.Entrada;
+import com.aristools.modelo.LineaOrdenCompra;
 import com.aristools.modelo.Naturaleza;
+import com.aristools.modelo.OrdenCompra;
 import com.aristools.modelo.Producto;
 import com.aristools.modelo.Proveedor;
 import com.aristools.modelo.TipoMovimiento;
@@ -43,6 +46,9 @@ public class EntradaPanel extends PanelMovimiento {
 
     private final JComboBox<TipoMovimiento> cmbTipo = new JComboBox<>();
     private final JComboBox<Proveedor> cmbProveedor = new JComboBox<>();
+    private final JComboBox<Object> cmbOrden = new JComboBox<>();   // "Sin orden de compra" u OrdenCompra
+    private final JLabel lblOrden = new JLabel(" ");
+    private final CompraControlador compras = new CompraControlador();
     private final JComboBox<Bodega> cmbBodega = new JComboBox<>();
     private final JTextField txtDocumento = new JTextField();
     private final JTextField txtObservacion = new JTextField();
@@ -70,6 +76,16 @@ public class EntradaPanel extends PanelMovimiento {
     public EntradaPanel() {
         agregarCampo("Tipo de entrada", cmbTipo);
         agregarCampo("Proveedor", cmbProveedor);
+        // Orden de compra que llega (opcional): al autorizar la entrada se actualiza su seguimiento
+        JPanel lineaOrden = new JPanel(new BorderLayout(8, 0));
+        lineaOrden.setOpaque(false);
+        JButton btnTraer = Tema.botonSecundario("Traer lo que falta de la orden");
+        btnTraer.addActionListener(e -> ejecutar(this::traerOrden));
+        lineaOrden.add(cmbOrden, BorderLayout.CENTER);
+        lineaOrden.add(btnTraer, BorderLayout.EAST);
+        agregarCampo("Orden de compra", lineaOrden);
+        lblOrden.setForeground(Tema.TEXTO_SUAVE);
+        agregarCampo("", lblOrden);
         agregarCampo("Bodega destino", cmbBodega);
         agregarCampo("Documento soporte", txtDocumento);
         agregarCampo("Observación", txtObservacion);
@@ -131,6 +147,7 @@ public class EntradaPanel extends PanelMovimiento {
         cmbTipo.addActionListener(e -> {
             boolean esCompra = esCompra();
             cmbProveedor.setEnabled(esCompra);
+            cmbOrden.setEnabled(esCompra);
             txtCosto.setEnabled(esCompra);
             if (!esCompra) {
                 cmbProveedor.setSelectedIndex(-1);
@@ -138,6 +155,12 @@ public class EntradaPanel extends PanelMovimiento {
             }
             sugerirCosto();
             avisarVencimiento();
+            cargarOrdenes();
+        });
+        cmbProveedor.addActionListener(e -> cargarOrdenes());
+        cmbOrden.addActionListener(e -> {
+            mostrarOrden();
+            sugerirCosto();
         });
         cmbProducto.addActionListener(e -> {
             sugerirCosto();
@@ -165,6 +188,71 @@ public class EntradaPanel extends PanelMovimiento {
         });
     }
 
+    /** Órdenes abiertas del proveedor elegido (solo en compras). */
+    private void cargarOrdenes() {
+        cmbOrden.removeAllItems();
+        cmbOrden.addItem("Sin orden de compra");
+        Proveedor p = (Proveedor) cmbProveedor.getSelectedItem();
+        if (esCompra() && p != null) {
+            try {
+                for (OrdenCompra o : compras.ordenesAbiertasDe(p.getIdProveedor())) {
+                    cmbOrden.addItem(o);
+                }
+            } catch (NegocioException ex) {
+                lblOrden.setText("No se pudieron consultar las órdenes: " + ex.getMessage());
+                return;
+            }
+        }
+        cmbOrden.setSelectedIndex(0);
+        mostrarOrden();
+    }
+
+    private OrdenCompra ordenElegida() {
+        return cmbOrden.isEnabled() && cmbOrden.getSelectedItem() instanceof OrdenCompra o ? o : null;
+    }
+
+    private void mostrarOrden() {
+        OrdenCompra o = ordenElegida();
+        if (o == null) {
+            int abiertas = Math.max(cmbOrden.getItemCount() - 1, 0);
+            lblOrden.setText(!esCompra() ? "Solo las compras reciben una orden de compra"
+                    : abiertas == 0 ? "Este proveedor no tiene órdenes esperando mercancía"
+                    : abiertas + " orden(es) de este proveedor esperan mercancía: elija la que llegó");
+            return;
+        }
+        int faltan = o.getLineas().stream().mapToInt(LineaOrdenCompra::pendiente).sum();
+        lblOrden.setText("Faltan " + faltan + " unidades de " + o.getLineas().size() + " producto(s) · recibido "
+                + o.porcentajeRecibido() + " %");
+    }
+
+    /**
+     * Agrega a la lista lo que le falta a la orden, al costo de la orden. Los
+     * productos que vencen se agregan uno por uno, porque piden lote y fecha.
+     */
+    private void traerOrden() {
+        OrdenCompra o = ordenElegida();
+        if (o == null) {
+            throw new NegocioException("Elija primero la orden de compra que llegó.");
+        }
+        List<String> conVencimiento = new ArrayList<>();
+        int agregados = 0;
+        for (LineaOrdenCompra l : o.getLineas()) {
+            if (l.porRecibir() <= 0 || productosLista.stream().anyMatch(p -> p.getIdProducto() == l.getProducto().getIdProducto())) {
+                continue;
+            }
+            if (l.getProducto().isControlaVencimiento()) {
+                conVencimiento.add(l.getProducto().getCodigo());
+                continue;
+            }
+            agregarLinea(l.getProducto(), l.porRecibir(), l.getCostoUnitario(), null, null);
+            agregados++;
+        }
+        Tema.info(this, "Se agregaron " + agregados + " producto(s) con lo que falta de la orden " + o.numero() + ".\n"
+                + "Revise las cantidades y los costos contra la factura; si llegó menos, quite la fila y agréguela de nuevo."
+                + (conVencimiento.isEmpty() ? "" : "\n\nAgregue a mano, con su lote y fecha de vencimiento: "
+                + String.join(", ", conVencimiento) + "."));
+    }
+
     private boolean esCompra() {
         return cmbTipo.getSelectedItem() != null
                 && "Compra".equalsIgnoreCase(cmbTipo.getSelectedItem().toString());
@@ -179,6 +267,22 @@ public class EntradaPanel extends PanelMovimiento {
         Producto p = (Producto) cmbProducto.getSelectedItem();
         if (!esCompra() || p == null) {
             lblCostoReferencia.setText(esCompra() ? "Seleccione un producto" : "Solo aplica a las compras");
+            return;
+        }
+        OrdenCompra orden = ordenElegida();
+        LineaOrdenCompra enOrden = orden == null ? null : orden.linea(p.getIdProducto());
+        if (enOrden != null) {
+            // Viene en la orden: se propone lo que falta y el costo con que se pidió
+            txtCantidad.setText(enOrden.porRecibir() > 0 ? String.valueOf(enOrden.porRecibir()) : "");
+            txtCosto.setText(Formato.pesos(enOrden.getCostoUnitario()));
+            lblCostoReferencia.setText("En la orden " + orden.numero() + ": pedido " + enOrden.getCantidad()
+                    + ", recibido " + enOrden.getCantidadRecibida() + ", faltan " + enOrden.pendiente()
+                    + (enOrden.getEnEspera() > 0 ? " (" + enOrden.getEnEspera() + " ya vienen en una entrada pendiente)" : "")
+                    + "  ·  Verifique con la factura");
+            return;
+        }
+        if (orden != null) {
+            lblCostoReferencia.setText("Este producto no está en la orden " + orden.numero() + ".");
             return;
         }
         try {
@@ -249,6 +353,16 @@ public class EntradaPanel extends PanelMovimiento {
                 return;
             }
         }
+        agregarLinea(p, cantidad, costo, lote, vence);
+        txtCantidad.setText("");
+        txtLote.setText("");
+        fVence.setFecha(null);
+        sugerirCosto();
+        cmbProducto.requestFocus();
+    }
+
+    // Agrega un producto a la lista de la entrada (tabla y listas paralelas).
+    private void agregarLinea(Producto p, int cantidad, BigDecimal costo, String lote, LocalDate vence) {
         productosLista.add(p);
         cantidadesLista.add(cantidad);
         costosLista.add(costo);
@@ -259,11 +373,6 @@ public class EntradaPanel extends PanelMovimiento {
             costo == null ? "—" : Formato.pesos(costo.multiply(BigDecimal.valueOf(cantidad))),
             lote == null ? "—" : lote,
             vence == null ? "—" : vence.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"))});
-        txtCantidad.setText("");
-        txtLote.setText("");
-        fVence.setFecha(null);
-        sugerirCosto();
-        cmbProducto.requestFocus();
     }
 
     private void quitarProducto() {
@@ -283,6 +392,7 @@ public class EntradaPanel extends PanelMovimiento {
         TipoMovimiento tipo = (TipoMovimiento) cmbTipo.getSelectedItem();
         Bodega bodega = (Bodega) cmbBodega.getSelectedItem();
         Proveedor proveedor = cmbProveedor.isEnabled() ? (Proveedor) cmbProveedor.getSelectedItem() : null;
+        OrdenCompra orden = ordenElegida();
         List<Entrada> entradas = new ArrayList<>();
         for (int i = 0; i < productosLista.size(); i++) {
             Entrada e = new Entrada(productosLista.get(i), tipo, null, cantidadesLista.get(i), bodega, proveedor);
@@ -291,10 +401,12 @@ public class EntradaPanel extends PanelMovimiento {
             e.setCostoUnitario(costosLista.get(i));   // costo de la factura (solo compras)
             e.setLote(lotesLista.get(i));
             e.setFechaVencimiento(vencimientosLista.get(i));
+            e.setIdOrden(orden == null ? null : orden.getIdOrden());
             entradas.add(e);
         }
         movimientos.registrarEntradas(entradas);   // valida y guarda en una sola transacción
-        Tema.info(this, "Se registró la entrada con " + entradas.size() + " producto(s). "
+        Tema.info(this, "Se registró la entrada con " + entradas.size() + " producto(s)"
+                + (orden == null ? "" : " de la orden " + orden.numero()) + ". "
                 + "Queda Pendiente hasta que el Jefe de Compras la autorice.");
         productosLista.clear();
         cantidadesLista.clear();
@@ -304,5 +416,6 @@ public class EntradaPanel extends PanelMovimiento {
         modeloLista.setRowCount(0);
         txtDocumento.setText("");
         txtObservacion.setText("");
+        cargarOrdenes();   // la orden ya no ofrece lo que viene en esta entrada
     }
 }

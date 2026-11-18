@@ -22,7 +22,7 @@ cd aristools-inventario
 mvn test
 ```
 
-Resultado esperado: `Tests run: 84, Failures: 0, Errors: 0` y `BUILD SUCCESS`, en cualquier computador con JDK 17 y Maven, sin instalar MySQL y sin contraseñas.
+Resultado esperado: `Tests run: 88, Failures: 0, Errors: 0, Skipped: 1` y `BUILD SUCCESS`, en cualquier computador con JDK 17 y Maven, sin instalar MySQL y sin contraseñas.
 
 ---
 
@@ -92,6 +92,17 @@ La opción *Sugerencia de compra* (Jefe de Compras y Administrador) dice qué pe
 **Ejemplo:** salen 2 tornillos por día, el proveedor tarda 5 días y el mínimo es 10: el punto de reorden es 2 × 5 + 10 = 20. Si quedan 18 y el máximo es 100, se sugiere pedir 82.
 
 La columna *Pedir* se puede cambiar. Con lo que se decide pedir se genera la **orden de compra** para un proveedor: se guarda con su número (`OC-000001`) y se imprime en PDF con los datos del proveedor, los productos, el costo de referencia y el total estimado. La orden es solo el pedido: el stock cambia cuando llega la mercancía y se registra la compra con la factura.
+
+**Seguimiento de la orden.** La opción *Órdenes de compra* muestra cada orden con su estado y cuánto ha llegado de cada producto:
+
+| Estado | Cuándo |
+|---|---|
+| Pendiente | Al generarla; todavía no llega nada |
+| Recibida en parte | Se autorizó una entrada que trajo una parte |
+| Recibida | Ya llegó todo lo pedido |
+| Anulada | El Jefe de Compras la canceló con un motivo (queda en la bitácora). Lo que ya llegó se queda en el inventario |
+
+Al registrar la compra en *Movimientos → Entrada*, el Almacenista elige la orden que llegó (el botón *Traer lo que falta de la orden* llena la lista con lo pendiente y el costo de la orden). El sistema no deja recibir productos que no están en la orden, de otro proveedor ni más de lo que falta (contando lo que ya viene en entradas pendientes). La orden cambia de estado cuando el Jefe de Compras **autoriza** la entrada, dentro de la misma transacción; no se puede anular una orden que tiene entradas esperando autorización.
 
 ### Clasificación ABC y conteo cíclico
 
@@ -255,6 +266,7 @@ aristools-inventario/
 │   ├── actualizar_bd_v6.sql     #   v6: causas de baja y bodega de cuarentena
 │   ├── actualizar_bd_v7.sql     #   v7: días de entrega y órdenes de compra
 │   ├── actualizar_bd_v8.sql     #   v8: vencimientos e historial de conteos
+│   ├── actualizar_bd_v9.sql     #   v9: seguimiento de la orden de compra
 │   ├── respaldar_bd.bat         # Respaldo (RNF-007)
 │   └── restaurar_bd.bat         # Restauración (RNF-007)
 ├── src/main/java/com/aristools/
@@ -268,7 +280,7 @@ aristools-inventario/
 │   └── vista/       37 clases (ventanas, paneles y diálogos Swing)
 ├── src/main/resources/
 │   └── db.properties.ejemplo    # Plantilla de la conexión a MySQL (copiar como db.properties)
-├── src/test/java/com/aristools/ # 84 pruebas JUnit
+├── src/test/java/com/aristools/ # 88 pruebas JUnit
 ├── src/test/resources/
 │   └── db-pruebas.properties    # Conexión de las pruebas: H2 en memoria
 ├── ejecutar_aristools.bat       # Lanzador del .jar (sin ventana de consola)
@@ -278,16 +290,16 @@ aristools-inventario/
 
 | Paquete | Clases |
 |---|---|
-| `modelo` | Rol, Usuario, Categoria, Producto, Bodega, Proveedor, Existencia, TipoMovimiento, Alerta, Parametro, RegistroBitacora, **Movimiento** (abstracta), Entrada, Salida, Transferencia, Ajuste, EstadoUsuario, EstadoRegistro, EstadoMovimiento, EstadoAlerta, TipoAlerta, Naturaleza, CausaBaja, CambioStock, TotalPerdida, LineaKardex, LineaConteo, FiltroMovimiento, SugerenciaCompra, OrdenCompra, LineaOrdenCompra |
+| `modelo` | Rol, Usuario, Categoria, Producto, Bodega, Proveedor, Existencia, TipoMovimiento, Alerta, Parametro, RegistroBitacora, **Movimiento** (abstracta), Entrada, Salida, Transferencia, Ajuste, EstadoUsuario, EstadoRegistro, EstadoMovimiento, EstadoAlerta, TipoAlerta, Naturaleza, CausaBaja, CambioStock, TotalPerdida, LineaKardex, LineaConteo, FiltroMovimiento, SugerenciaCompra, OrdenCompra, LineaOrdenCompra, EstadoOrden |
 | `dao` | UsuarioDAO, RolDAO, CategoriaDAO, ProductoDAO, BodegaDAO, ProveedorDAO, TipoMovimientoDAO, ParametroDAO, ExistenciaDAO, MovimientoDAO, AlertaDAO, ReporteDAO, BitacoraDAO, CompraDAO |
 | `controlador` | LoginControlador, GestorInventario, MovimientoControlador, AutorizacionControlador, AlertaControlador, ConteoControlador, ReporteControlador, PanelControlador, UsuarioControlador, ProductoControlador, BodegaControlador, ProveedorControlador, ParametroControlador, BitacoraControlador, CompraControlador, Auditoria |
-| `vista` | **Ventanas y diálogos:** LoginVista, PrincipalVista, CambiarClaveDialogo, PrimerAdminDialogo · **Pantallas:** InicioPanel, CatalogosPanel, ProductosPanel, CategoriasPanel, BodegasPanel, ProveedoresPanel, UsuariosPanel, MovimientosPanel, EntradaPanel, SalidaPanel, TransferenciaPanel, ConteoPanel, AutorizacionesPanel, ExistenciasPanel, ReportesPanel, SugerenciaCompraPanel, ParametrosPanel, BitacoraPanel · **Base y apoyo:** PanelCatalogo y PanelMovimiento (abstractas), Recargable (interfaz), PanelDesplazable, PanelEnConstruccion, BarraFiltros, CampoFecha, ExportadorCsv, ExportadorPdf, MonitorInactividad, MostrarClave, Tema |
+| `vista` | **Ventanas y diálogos:** LoginVista, PrincipalVista, CambiarClaveDialogo, PrimerAdminDialogo · **Pantallas:** InicioPanel, CatalogosPanel, ProductosPanel, CategoriasPanel, BodegasPanel, ProveedoresPanel, UsuariosPanel, MovimientosPanel, EntradaPanel, SalidaPanel, TransferenciaPanel, ConteoPanel, AutorizacionesPanel, ExistenciasPanel, ReportesPanel, SugerenciaCompraPanel, OrdenesCompraPanel, ParametrosPanel, BitacoraPanel · **Base y apoyo:** PanelCatalogo y PanelMovimiento (abstractas), Recargable (interfaz), PanelDesplazable, PanelEnConstruccion, BarraFiltros, CampoFecha, ExportadorCsv, ExportadorPdf, MonitorInactividad, MostrarClave, Tema |
 
 ---
 
 ## 6. Base de datos
 
-Esquema `aristools` (InnoDB, utf8mb4) con **16 tablas**, 16 llaves primarias, **22 llaves foráneas**, restricciones `UNIQUE` y `CHECK`, 5 índices y 2 disparadores.
+Esquema `aristools` (InnoDB, utf8mb4) con **16 tablas**, 16 llaves primarias, **23 llaves foráneas**, restricciones `UNIQUE` y `CHECK`, 5 índices y 2 disparadores.
 
 | Grupo | Tablas |
 |---|---|
@@ -325,6 +337,7 @@ En MySQL Workbench, ejecutar en este orden:
 | `actualizar_bd_v6.sql` | Averías: `causa_baja` en `movimiento_inventario`, `es_cuarentena` en `bodega` y la bodega de cuarentena |
 | `actualizar_bd_v7.sql` | Compras: `dias_entrega` en `proveedor`, tablas `orden_compra` y `orden_compra_detalle` y parámetro `dias_entrega_defecto` |
 | `actualizar_bd_v8.sql` | Vencimientos y conteos: `controla_vencimiento` en `producto`, `lote` y `fecha_vencimiento` en `movimiento_inventario`, tablas `conteo` y `conteo_detalle` y parámetro `dias_aviso_vencimiento` |
+| `actualizar_bd_v9.sql` | Seguimiento de la orden de compra: `estado` y `motivo_anulacion` en `orden_compra`, `cantidad_recibida` en `orden_compra_detalle` e `id_orden` (llave foránea) en `movimiento_inventario` |
 
 Cada integrante ejecuta los scripts en su propio MySQL: GitHub comparte el código, no la base de datos.
 
@@ -384,7 +397,7 @@ Contraseña de todos: `Aristools2026*`
 
 ---
 
-## 8. Pruebas automatizadas (84)
+## 8. Pruebas automatizadas (88)
 
 ```
 mvn test
@@ -402,17 +415,27 @@ Las pruebas usan **H2**, una base de datos en memoria que Maven descarga sola (l
 
 `ConexionDB` usa `db-pruebas.properties` solo cuando ese archivo existe, y eso ocurre únicamente al ejecutar las pruebas. Ni ese archivo ni H2 van dentro del `.jar`: el programa siempre usa MySQL.
 
-**Límite conocido:** los dos disparadores de la bitácora están escritos en el lenguaje de MySQL y H2 no los ejecuta. Se comprueban en MySQL Workbench intentando un `UPDATE` o un `DELETE` sobre la tabla `bitacora`: MySQL responde con el error “La bitácora no se puede modificar” o “La bitácora no se puede borrar”.
+**Límite conocido:** los dos disparadores de la bitácora están escritos en el lenguaje de MySQL y H2 no los ejecuta. Por eso, con H2, la prueba de los disparadores sale como *Skipped: 1* (omitida, no fallida).
+
+### Las mismas pruebas en MySQL real
+
+H2 imita a MySQL, pero no es MySQL. Para comprobar que todo el SQL funciona igual en el motor real, las mismas pruebas se pueden correr contra MySQL:
+
+1. Copiar `db-pruebas-mysql.properties.ejemplo` (en la raíz del proyecto) con el nombre `db-pruebas-mysql.properties` y escribir la contraseña de MySQL. No se sube a GitHub.
+2. Ejecutar `mvn test -Dpruebas=mysql`.
+
+Las pruebas **borran y vuelven a crear** la base `aristools_pruebas` con los scripts del proyecto, incluidos los dos disparadores, que en este modo sí se prueban (`Tests run: 88, Skipped: 0`). Por seguridad el nombre de la base debe terminar en `_pruebas`: la base de trabajo `aristools` nunca se toca. El `mvn clean package` de siempre sigue usando H2.
 
 ### Qué verifica cada clase
 
 | Clase | Pruebas | Qué verifica |
 |---|---|---|
-| `BaseDePruebasTest` | 3 | Las pruebas usan H2 y no MySQL; el script real crea las tablas; el lector separa bien las sentencias de un script |
+| `BaseDePruebasTest` | 4 | Las pruebas nunca usan la base de trabajo; el script real crea las tablas; el lector separa las sentencias y los disparadores de un script; en MySQL real, la bitácora no se puede modificar ni borrar |
 | `ConexionDBTest` | 2 | `ConexionDB` entrega una conexión válida; existen los 4 roles y los 9 tipos de movimiento |
 | `ModeloTest` | 23 | Herencia y polimorfismo, validaciones (cantidad, motivo y causa, proveedor, número de factura y costo en compras, costo inusual), costo promedio ponderado, reglas de la cuarentena, documentos de soporte, totales de pérdidas, sugerencia de compra, orden de compra, segregación de funciones, bloqueo al tercer intento, umbrales y conteo físico |
 | `PerdidasTest` | 2 | Flujo completo de una avería: cuarentena, baja con causa, autorización, acta de baja y reporte de pérdidas en pesos; el reporte solo lo ven Supervisor y Administrador |
 | `CompraTest` | 2 | Sugerencia de la pintura bajo su mínimo, orden de compra guardada con su total; la sugerencia solo la usan Jefe de Compras y Administrador |
+| `OrdenCompraTest` | 3 | La orden pasa de Pendiente a Recibida en parte y a Recibida al autorizar las entradas; no se recibe más de lo que falta ni productos que no se pidieron; la anulación exige motivo y no deja entradas en espera |
 | `AbcYVencimientoTest` | 5 | Clasificación ABC (80 % / 95 %), reparto FEFO del stock entre lotes, estado del lote según los días de aviso, lote y fecha obligatorios en la compra, exactitud del conteo |
 | `ConteoYVencimientoTest` | 4 | Compra con lote que aparece en Vencimientos al autorizarse, clasificación ABC de todos los productos, conteo a ciegas guardado en el historial y plantilla cíclica por clase |
 | `IndicadoresTest` | 4 | La línea de control separa entradas, salidas, pérdidas y sobrantes; fórmulas de rotación, días de inventario y semáforos; el control del período cuadra con las existencias; el tablero tiene nueve indicadores y respeta los roles |
@@ -460,11 +483,8 @@ Ambos detectan automáticamente la carpeta de MySQL Server 8.x o 9.x en `C:\Prog
 | 16 | Clasificación ABC, conteo cíclico y a ciegas, historial de conteos y vencimientos (FEFO) | ✅ |
 | 17 | Control de inventario del período y tablero de indicadores (KPI) | ✅ |
 | 18 | Respaldo y restauración desde la aplicación y respaldo automático | ✅ |
+| 19 | Seguimiento de la orden de compra y pruebas en MySQL real | ✅ |
 
-### Mejoras planeadas para la entrega final
-
-Respaldo automático de la base de datos y pruebas finales.
-
-**Trabajo futuro (fuera del alcance):** base de datos en red o en la nube, control de stock por lote y lector de código de barras.
+**Trabajo futuro (fuera del alcance):** base de datos en red o en la nube, control de stock lote por lote en las salidas (hoy se estima con la regla FEFO), ubicaciones dentro de la bodega (pasillo y estante) y lector de código de barras.
 
 La documentación completa (requerimientos, casos de uso, diagramas UML, modelo entidad-relación y mockups) está en el documento del Proyecto Integrador.

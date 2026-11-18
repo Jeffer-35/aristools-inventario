@@ -3,6 +3,7 @@ package com.aristools.controlador;
 import com.aristools.dao.CompraDAO;
 import com.aristools.dao.ProductoDAO;
 import com.aristools.dao.ProveedorDAO;
+import com.aristools.modelo.EstadoOrden;
 import com.aristools.modelo.LineaOrdenCompra;
 import com.aristools.modelo.OrdenCompra;
 import com.aristools.modelo.Producto;
@@ -27,6 +28,10 @@ import java.util.Map;
  * punto de reorden con los días de entrega de su proveedor y la cantidad a
  * pedir (la fórmula está en SugerenciaCompra). Con lo que se decide pedir
  * se genera la orden de compra para un proveedor.
+ *
+ * Seguimiento: la orden nace Pendiente; cuando el Jefe de Compras autoriza
+ * la entrada que la recibe pasa a Recibida en parte o Recibida. Si el
+ * proveedor no va a entregar lo que falta, la orden se anula con un motivo.
  */
 public class CompraControlador {
 
@@ -99,6 +104,75 @@ public class CompraControlador {
         } catch (SQLException e) {
             throw NegocioException.deBaseDeDatos(e);
         }
+    }
+
+    /**
+     * Órdenes de compra para la pantalla de seguimiento.
+     *
+     * @param soloAbiertas true = solo las que todavía esperan mercancía
+     */
+    public List<OrdenCompra> listarOrdenes(boolean soloAbiertas) {
+        Sesion.exigir(Accion.SUGERIR_COMPRA);
+        try {
+            return compraDAO.listarOrdenes(soloAbiertas, null);
+        } catch (SQLException e) {
+            throw NegocioException.deBaseDeDatos(e);
+        }
+    }
+
+    /**
+     * Órdenes abiertas de un proveedor, para elegir cuál se recibe en la
+     * pantalla de Entrada (la usa el Almacenista).
+     */
+    public List<OrdenCompra> ordenesAbiertasDe(int idProveedor) {
+        Sesion.exigir(Accion.REGISTRAR_MOVIMIENTOS);
+        try {
+            return compraDAO.listarOrdenes(true, idProveedor);
+        } catch (SQLException e) {
+            throw NegocioException.deBaseDeDatos(e);
+        }
+    }
+
+    /**
+     * Anula una orden que todavía espera mercancía. Lo que ya llegó queda en
+     * el inventario; lo que faltaba deja de esperarse. Reglas: motivo
+     * obligatorio, la orden debe estar abierta y no puede tener entradas
+     * esperando autorización (primero se autorizan o se rechazan).
+     */
+    public void anularOrden(int idOrden, String motivo) {
+        Sesion.exigir(Accion.SUGERIR_COMPRA);
+        if (motivo == null || motivo.trim().length() < 5) {
+            throw new NegocioException("Escriba el motivo de la anulación (mínimo 5 caracteres), "
+                    + "por ejemplo: el proveedor no tiene el producto.");
+        }
+        try {
+            OrdenCompra orden = compraDAO.buscarOrden(idOrden);
+            if (orden == null) {
+                throw new NegocioException("La orden de compra no existe.");
+            }
+            if (!orden.getEstado().estaAbierta()) {
+                throw new NegocioException("La orden " + orden.numero() + " ya está " + orden.getEstado().texto().toLowerCase()
+                        + ": no se puede anular.");
+            }
+            int enEspera = compraDAO.entradasEnEspera(idOrden);
+            if (enEspera > 0) {
+                throw new NegocioException("La orden " + orden.numero() + " tiene " + enEspera + " entrada(s) esperando "
+                        + "autorización. Autorícelas o recházelas antes de anular la orden.");
+            }
+            if (!compraDAO.anular(idOrden, motivo.trim())) {
+                throw new NegocioException("La orden " + orden.numero() + " cambió mientras tanto. Actualice la lista.");
+            }
+            Auditoria.registrar("ANULAR_ORDEN", "Anuló la orden " + orden.numero() + " de "
+                    + orden.getProveedor().getRazonSocial() + " (" + orden.getEstado().texto().toLowerCase()
+                    + ", recibido " + orden.porcentajeRecibido() + " %). Motivo: " + motivo.trim());
+        } catch (SQLException e) {
+            throw NegocioException.deBaseDeDatos(e);
+        }
+    }
+
+    /** Estados que se pueden elegir en el filtro de la pantalla. */
+    public static EstadoOrden[] estados() {
+        return EstadoOrden.values();
     }
 
     /** Días de entrega del parámetro general (se muestran en la pantalla). */

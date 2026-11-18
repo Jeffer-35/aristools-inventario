@@ -24,6 +24,7 @@ public class Entrada extends Movimiento {
     private Proveedor proveedor;   // obligatorio en compras
     private String lote;                  // lote del fabricante (productos con vencimiento)
     private LocalDate fechaVencimiento;   // fecha en que vence ese lote
+    private Integer idOrden;              // orden de compra que recibe esta entrada (opcional)
 
     public Entrada() {
         super();
@@ -60,6 +61,9 @@ public class Entrada extends Movimiento {
         }
         if (esCompra() && (costoUnitario == null || costoUnitario.compareTo(BigDecimal.ZERO) <= 0)) {
             throw new NegocioException("Una compra exige el costo unitario de la factura, mayor que cero.");
+        }
+        if (idOrden != null && !esCompra()) {
+            throw new NegocioException("Solo una compra puede recibir una orden de compra.");
         }
         if (esCompra() && producto.isControlaVencimiento()) {
             if (lote == null || lote.isBlank() || fechaVencimiento == null) {
@@ -148,6 +152,9 @@ public class Entrada extends Movimiento {
 
     public LocalDate getFechaVencimiento() { return fechaVencimiento; }
     public void setFechaVencimiento(LocalDate fechaVencimiento) { this.fechaVencimiento = fechaVencimiento; }
+
+    public Integer getIdOrden() { return idOrden; }
+    public void setIdOrden(Integer idOrden) { this.idOrden = idOrden; }
 
     public Proveedor getProveedor() { return proveedor; }
     public void setProveedor(Proveedor proveedor) { this.proveedor = proveedor; }

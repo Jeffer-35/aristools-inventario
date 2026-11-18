@@ -70,6 +70,37 @@ public final class LectorScripts {
     }
 
     // Guarda la sentencia si no está vacía y si no es exclusiva del servidor MySQL.
+    /**
+     * Sentencias que van dentro de los bloques DELIMITER $$ ... DELIMITER ;
+     * (los disparadores de la bitácora). H2 no los entiende, por eso
+     * sentencias() los salta; en las pruebas con MySQL real sí se crean.
+     */
+    public static List<String> disparadores(String script) {
+        List<String> lista = new ArrayList<>();
+        StringBuilder actual = new StringBuilder();
+        boolean enDelimiter = false;
+        for (String linea : script.split("\\R")) {
+            String limpia = linea.trim().toUpperCase(Locale.ROOT);
+            if (limpia.startsWith("DELIMITER")) {
+                enDelimiter = !limpia.equals("DELIMITER ;");
+                continue;
+            }
+            if (!enDelimiter) {
+                continue;
+            }
+            if (linea.trim().endsWith("$$")) {
+                actual.append(linea, 0, linea.lastIndexOf("$$"));
+                if (!actual.toString().isBlank()) {
+                    lista.add(actual.toString().trim());
+                }
+                actual.setLength(0);
+            } else {
+                actual.append(linea).append('\n');
+            }
+        }
+        return lista;
+    }
+
     private static void agregar(List<String> lista, String sentencia) {
         String s = sentencia.trim();
         if (s.isEmpty()) {

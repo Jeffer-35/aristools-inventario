@@ -1,7 +1,9 @@
 package com.aristools.controlador;
 
 import com.aristools.conexion.ConexionDB;
+import com.aristools.dao.CompraDAO;
 import com.aristools.dao.MovimientoDAO;
+import com.aristools.modelo.Entrada;
 import com.aristools.modelo.Movimiento;
 import com.aristools.modelo.Naturaleza;
 import com.aristools.seguridad.Accion;
@@ -19,6 +21,7 @@ public class AutorizacionControlador {
 
     private final MovimientoDAO movimientoDAO = new MovimientoDAO();
     private final GestorInventario gestor = new GestorInventario();
+    private final CompraDAO compraDAO = new CompraDAO();
 
     /** Bandeja de pendientes: ENTRADA para el Jefe de Compras, SALIDA para el Supervisor. */
     public List<Movimiento> listarPendientes(Naturaleza n) {
@@ -41,7 +44,8 @@ public class AutorizacionControlador {
     }
 
     // Pasos: 1) bloquear el movimiento, 2) verificar permiso, segregación y estado,
-    // 3) aplicar el stock si se autoriza, 4) guardar la decisión, 5) COMMIT.
+    // 3) aplicar el stock si se autoriza (y, si recibe una orden de compra, sumar
+    // lo recibido a la orden), 4) guardar la decisión, 5) COMMIT.
     private void resolver(int idMovimiento, boolean autorizar, String motivo) {
         try (Connection con = ConexionDB.obtener()) {
             con.setAutoCommit(false);
@@ -54,6 +58,10 @@ public class AutorizacionControlador {
                 if (autorizar) {
                     m.autorizar(Sesion.getUsuario());   // segregación de funciones y rol autorizador
                     gestor.aplicar(con, m);             // vuelve a verificar la existencia (RF-011)
+                    if (m instanceof Entrada e && e.getIdOrden() != null) {
+                        // Seguimiento de la orden de compra: suma lo recibido y actualiza su estado
+                        compraDAO.recibir(con, e.getIdOrden(), e.getProducto().getIdProducto(), e.getCantidad());
+                    }
                 } else {
                     m.rechazar(Sesion.getUsuario(), motivo);
                 }

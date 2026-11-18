@@ -2,7 +2,7 @@
 -- Proyecto Integrador - Segunda Entrega
 -- Sistema de Gestión de Inventarios - Ferretería Aristools
 -- Archivo 1 de 2: aristools.sql
--- Crea la base de datos, las 14 tablas y los datos obligatorios del
+-- Crea la base de datos, las 16 tablas y los datos obligatorios del
 -- sistema (roles, tipos de movimiento y parámetros globales).
 -- Corresponde a la Figura 28 (modelo entidad-relación) y a la Figura 29
 -- (diagrama de datos) del documento. Motor: MySQL 8.x.
@@ -162,6 +162,7 @@ CREATE TABLE movimiento_inventario (
     observacion          VARCHAR(255) NULL,
     lote                 VARCHAR(30)  NULL,  -- lote del fabricante (compras de productos con vencimiento)
     fecha_vencimiento    DATE         NULL,  -- fecha en que vence ese lote
+    id_orden             INT          NULL,  -- orden de compra que se recibe con esta entrada (opcional)
     CONSTRAINT pk_movimiento PRIMARY KEY (id_movimiento),
     CONSTRAINT fk_movimiento_producto FOREIGN KEY (id_producto) REFERENCES producto (id_producto),
     CONSTRAINT fk_movimiento_tipo FOREIGN KEY (id_tipo_movimiento) REFERENCES tipo_movimiento (id_tipo_movimiento),
@@ -227,10 +228,13 @@ CREATE TABLE orden_compra (
     fecha         DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
     total         DECIMAL(14,2) NOT NULL DEFAULT 0,   -- valor estimado al costo de la última compra
     observacion   VARCHAR(255)  NULL,
+    estado        VARCHAR(10)   NOT NULL DEFAULT 'PENDIENTE',  -- PENDIENTE, PARCIAL, RECIBIDA o ANULADA
+    motivo_anulacion VARCHAR(255) NULL,
     CONSTRAINT pk_orden_compra PRIMARY KEY (id_orden),
     CONSTRAINT fk_orden_proveedor FOREIGN KEY (id_proveedor) REFERENCES proveedor (id_proveedor),
     CONSTRAINT fk_orden_usuario FOREIGN KEY (id_usuario) REFERENCES usuario (id_usuario),
-    CONSTRAINT ck_orden_total CHECK (total >= 0)
+    CONSTRAINT ck_orden_total CHECK (total >= 0),
+    CONSTRAINT ck_orden_estado CHECK (estado IN ('PENDIENTE', 'PARCIAL', 'RECIBIDA', 'ANULADA'))
 ) ENGINE = InnoDB;
 
 -- Productos de cada orden de compra (llave compuesta: un producto una vez por orden)
@@ -239,12 +243,19 @@ CREATE TABLE orden_compra_detalle (
     id_producto     INT           NOT NULL,
     cantidad        INT           NOT NULL,
     costo_unitario  DECIMAL(14,4) NOT NULL DEFAULT 0,
+    cantidad_recibida INT         NOT NULL DEFAULT 0,  -- lo que ya llegó con entradas autorizadas
     CONSTRAINT pk_orden_detalle PRIMARY KEY (id_orden, id_producto),
     CONSTRAINT fk_detalle_orden FOREIGN KEY (id_orden) REFERENCES orden_compra (id_orden),
     CONSTRAINT fk_detalle_producto FOREIGN KEY (id_producto) REFERENCES producto (id_producto),
     CONSTRAINT ck_detalle_cantidad CHECK (cantidad > 0),
-    CONSTRAINT ck_detalle_costo CHECK (costo_unitario >= 0)
+    CONSTRAINT ck_detalle_costo CHECK (costo_unitario >= 0),
+    CONSTRAINT ck_detalle_recibida CHECK (cantidad_recibida BETWEEN 0 AND cantidad)
 ) ENGINE = InnoDB;
+
+-- La entrada que recibe una orden de compra queda enlazada con ella. La llave
+-- se agrega aquí porque movimiento_inventario se crea antes que orden_compra.
+ALTER TABLE movimiento_inventario
+    ADD CONSTRAINT fk_movimiento_orden FOREIGN KEY (id_orden) REFERENCES orden_compra (id_orden);
 
 -- Historial de conteos físicos: cada vez que se carga un conteo queda guardado
 -- con lo que decía el sistema y lo que se contó, haya o no diferencias.
